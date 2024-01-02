@@ -2,22 +2,21 @@
 // Inspired by https://github.com/michaelfm1211/ec
 //
 // ::compile
-// :+  $CC -Wall -Wextra
-// :+      -D__USE_MINGW_ANSI_STDIO=1
-// :+      -fmerge-all-constants -ffunction-sections -fdata-sections
-// :+      -fno-unwind-tables -fno-asynchronous-unwind-tables
-// :+      -Wl,--gc-sections -s
+// :+  $CC $CFLAGS $SMALL-BINARY
 // :+      -DNDEBUG=1 -O3 -o $+^ $"!
 //
 // ::debug
-// :+  $CC -Wall -Wextra
-// :+      -D__USE_MINGW_ANSI_STDIO=1
+// :+  $CC $CFLAGS
 // :+      -Og -g -o $+: $"!
 // :&  $DBG $"* $+:
 // :&  $RM $+:
 //
-// ::clean
-// :+  $RM $+^
+// ::CFLAGS  -Wall -Wextra -D__USE_MINGW_ANSI_STDIO=1
+//
+// ::SMALL-BINARY
+// :+      -fmerge-all-constants -ffunction-sections -fdata-sections
+// :+      -fno-unwind-tables -fno-asynchronous-unwind-tables
+// :+      -Wl,--gc-sections -s
 //
 
 /*
@@ -335,7 +334,7 @@ static char const *get_file_name(char const *file, size_t *len) {
 #define get_file_name(get_file_name__file,...)\
 	(get_file_name)((get_file_name__file),__VA_ARGS__+0)
 
-static char const *expand(char const *ct, size_t n, int argn, char **argv, char const *rule, char const *file) {
+static char const *expand(char const *ct, size_t n, int argn, char **argv, size_t n_rules, struct rule const *rules, char const *rule, char const *file) {
 	size_t rule_len = strlen(rule);
 	size_t file_len = strlen(file);
 	size_t m        = 0;
@@ -451,8 +450,17 @@ static char const *expand(char const *ct, size_t n, int argn, char **argv, char 
 				ct++, n--, u++;
 			} while((*ct == '_') || (*ct == '-') || isalnum(*ct))
 				;
+			t = NULL;
 			cs = duplicate(cs, u);
-			if((t = getenv(cs))) {
+			for(size_t i = 0; i < n_rules; i++) {
+				if(streq(cs, rules[i].name.cs)) {
+					if(rules[i].n_commands > 0) {
+						t = rules[i].command[0].cs;
+					}
+					break;
+				}
+			}
+			if(t || (t = getenv(cs))) {
 				w = strlen(t);
 				CONCATENATE(s, m, t, w);
 			} else if(streq(cs, "CC")) {
@@ -514,7 +522,7 @@ int main(int argc__actual, char **argv__actual) {
 	(void)argc__actual;
 	char *argv[] = {
 		argv__actual[0],
-		"-c", "./m.c",
+		"m.c",
 		NULL,
 	};
 	int argc = (sizeof(argv) / sizeof(argv[1])) - 1;
@@ -619,7 +627,7 @@ print_usage_and_fail:
 					char const *cs = expand(
 						rules[i].command[j].cs, rules[i].command[j].n,
 						argc - argi, &argv[argi],
-						rules[i].name.cs,
+						n_rules, rules, rules[i].name.cs,
 						file
 					);
 					putchar('\t'), puts(cs);
@@ -636,7 +644,7 @@ print_usage_and_fail:
 				char const *cs = expand(
 					rules[0].command[j].cs, rules[0].command[j].n,
 					argc - argi, &argv[argi],
-					rules[0].name.cs,
+					n_rules, rules, rules[0].name.cs,
 					file
 				);
 				if(echo) {
@@ -657,7 +665,7 @@ print_usage_and_fail:
 						char const *cs = expand(
 							rules[i].command[j].cs, rules[i].command[j].n,
 							argc - argi, &argv[argi],
-							rules[i].name.cs,
+							n_rules, rules, rules[i].name.cs,
 							file
 						);
 						if(echo) {

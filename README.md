@@ -1,4 +1,5 @@
 # m
+
 a mini make
 
 Inspired by https://github.com/michaelfm1211/ec
@@ -22,6 +23,8 @@ Specifically, **m** parses line comments at the head of the file, and stops pars
 ## Variable Expansion
 
 Variables are indicated by the `$` character; unlike make, they are not enclosed in parenthesis.
+
+Expansion is **not** recursive.
 
 ### expansion modifiers
 
@@ -56,3 +59,9 @@ A numeric variable name specifies the position index of an argument passed on th
 Starting with `_` or an alphabetic character, and continuing with `-`, `_` and alphanumeric characters.
 
 **m** attempts to obtain the value of the corresponding environment variable; if it fails, it is silently omitted, except in the case of `$CC`, `$DBG`, and `$RM` where it provides a system related default.
+
+#### rules
+
+Rules can also be used as variable, however, when a rule has multiple commands only the *first* command is expanded.
+
+Rules take precedence over environment variables with the same name.
