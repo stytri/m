@@ -514,6 +514,8 @@ static void usage(FILE *out) {
 	fprintf(out, "\t                   AGGREGATION   - the character sequence indicating the start of a new rule command\n");
 	fprintf(out, "\t-t, --type         define rule sigils according to argument:\n");
 	fprintf(out, "\t                   TYPE          - one of: .c .asm .sh\n");
+	fprintf(out, "\n");
+	fprintf(out, "if RULE is the single character '-', the first rule is invoked\n");
 	return;
 }
 
@@ -638,51 +640,33 @@ print_usage_and_fail:
 			}
 		}
 	} else {
-		char const *rule = (argi < argc) ? argv[argi++] : "";
-		if(!*rule) {
-			for(size_t j = 0; j < rules[0].n_commands; j++) {
-				char const *cs = expand(
-					rules[0].command[j].cs, rules[0].command[j].n,
-					argc - argi, &argv[argi],
-					n_rules, rules, rules[0].name.cs,
-					file
-				);
-				if(echo) {
-					puts(cs);
-				}
-				ec = system(cs);
-				xfree(cs);
-				if(ec != EXIT_SUCCESS) {
-					break;
-				}
-			}
-		} else {
-			bool found = false;
-			for(size_t i = 0; i < n_rules; i++) {
-				if(strcmp(rule, rules[i].name.cs) == 0) {
-					found = true;
-					for(size_t j = 0; j < rules[i].n_commands; j++) {
-						char const *cs = expand(
-							rules[i].command[j].cs, rules[i].command[j].n,
-							argc - argi, &argv[argi],
-							n_rules, rules, rules[i].name.cs,
-							file
-						);
-						if(echo) {
-							puts(cs);
-						}
-						ec = system(cs);
-						xfree(cs);
-						if(ec != EXIT_SUCCESS) {
-							break;
-						}
+		char const *rule = (argi < argc) ? argv[argi++] : "-";
+		if(streq(rule, "-")) rule = rules[0].name.cs;
+		bool found = false;
+		for(size_t i = 0; i < n_rules; i++) {
+			if(strcmp(rule, rules[i].name.cs) == 0) {
+				found = true;
+				for(size_t j = 0; j < rules[i].n_commands; j++) {
+					char const *cs = expand(
+						rules[i].command[j].cs, rules[i].command[j].n,
+						argc - argi, &argv[argi],
+						n_rules, rules, rules[i].name.cs,
+						file
+					);
+					if(echo) {
+						puts(cs);
 					}
-					break;
+					ec = system(cs);
+					xfree(cs);
+					if(ec != EXIT_SUCCESS) {
+						break;
+					}
 				}
+				break;
 			}
-			if(!found) {
-				fprintf(stderr, "%s: rule '%s' undefined\n", file, rule);
-			}
+		}
+		if(!found) {
+			fprintf(stderr, "%s: rule '%s' undefined\n", file, rule);
 		}
 	}
 
