@@ -334,7 +334,7 @@ static char const *get_file_name(char const *file, size_t *len) {
 #define get_file_name(get_file_name__file,...)\
 	(get_file_name)((get_file_name__file),__VA_ARGS__+0)
 
-static char const *expand(char const *ct, size_t n, int argn, char **argv, size_t n_rules, struct rule const *rules, char const *rule, char const *file) {
+static char const *expand(char const *ct, int argn, char **argv, size_t n_rules, struct rule const *rules, char const *rule, char const *file) {
 	size_t rule_len = strlen(rule);
 	size_t file_len = strlen(file);
 	size_t m        = 0;
@@ -346,9 +346,8 @@ static char const *expand(char const *ct, size_t n, int argn, char **argv, size_
 			s   = concatenate(s, m, ct, u);
 			m  += u;
 			ct += u;
-			n  -= u;
 		}
-		ct++, n--;
+		ct++;
 		bool const quoted = *ct == '"';
 		ct += quoted;
 		bool const alt = *ct == '+';
@@ -360,6 +359,21 @@ static char const *expand(char const *ct, size_t n, int argn, char **argv, size_
 			} \
 			S  = concatenate(S, M, T, N); \
 			M += N; \
+			if(quoted) { \
+				S  = concatenate(S, M, "\"", 1); \
+				M += 1; \
+			} \
+		} while(0)
+#		define RECURSIVE_CONCATENATE(S,M,T,N) do { \
+			if(quoted) { \
+				S  = concatenate(S, M, "\"", 1); \
+				M += 1; \
+			} \
+			char const *RECURSIVE_CONCATENATE__T = expand(T, argn, argv, n_rules, rules, rule, file);\
+			size_t      RECURSIVE_CONCATENATE__N = strlen(RECURSIVE_CONCATENATE__T); \
+			S  = concatenate(S, M, RECURSIVE_CONCATENATE__T, RECURSIVE_CONCATENATE__N); \
+			M += RECURSIVE_CONCATENATE__N; \
+			xfree(RECURSIVE_CONCATENATE__T);\
 			if(quoted) { \
 				S  = concatenate(S, M, "\"", 1); \
 				M += 1; \
@@ -379,7 +393,7 @@ static char const *expand(char const *ct, size_t n, int argn, char **argv, size_
 #endif
 		switch(*ct) {
 		case ':':
-			ct++, n--;
+			ct++;
 			if(alt) {
 				t = rule, w = rule_len;
 				CONCATENATE_EXE(s, m, t, w);
@@ -388,7 +402,7 @@ static char const *expand(char const *ct, size_t n, int argn, char **argv, size_
 			CONCATENATE(s, m, rule, rule_len);
 			continue;
 		case '!':
-			ct++, n--;
+			ct++;
 			if(alt) {
 				t = get_file_root(file, &w);
 				CONCATENATE_EXE(s, m, t, w);
@@ -397,12 +411,12 @@ static char const *expand(char const *ct, size_t n, int argn, char **argv, size_
 			CONCATENATE(s, m, file, file_len);
 			continue;
 		case '/':
-			ct++, n--;
+			ct++;
 			t = get_file_path(file, &w);
 			CONCATENATE(s, m, t, w);
 			continue;
 		case '^':
-			ct++, n--;
+			ct++;
 			t = get_file_name(file, &w);
 			if(alt) {
 				CONCATENATE_EXE(s, m, t, w);
@@ -411,12 +425,12 @@ static char const *expand(char const *ct, size_t n, int argn, char **argv, size_
 			CONCATENATE(s, m, t, w);
 			continue;
 		case '.':
-			ct++, n--;
+			ct++;
 			t = get_file_extension(file, &w);
 			CONCATENATE(s, m, t, w);
 			continue;
 		case '*':
-			ct++, n--;
+			ct++;
 			for(int argi = 0; argi < argn; argi++) {
 				if(argi > 0) {
 					s  = concatenate(s, m, " ", 1);
@@ -428,7 +442,7 @@ static char const *expand(char const *ct, size_t n, int argn, char **argv, size_
 			}
 			continue;
 		case '$':
-			ct++, n--;
+			ct++;
 			CONCATENATE(s, m, "$", 1);
 			continue;
 		}
@@ -436,18 +450,18 @@ static char const *expand(char const *ct, size_t n, int argn, char **argv, size_
 			int argi = 0;
 			do {
 				argi = (argi * 10) + (*ct - '0');
-				ct++, n--;
+				ct++;
 			} while(isdigit(*ct))
 				;
 			if(argi < argn) {
 				t = argv[argi];
 				w = strlen(t);
-				CONCATENATE(s, m, t, w);
+				RECURSIVE_CONCATENATE(s, m, t, w);
 			}
 		} else if((*ct == '_') || isalpha(*ct)) {
 			cs = ct, u = 0;
 			do {
-				ct++, n--, u++;
+				ct++, u++;
 			} while((*ct == '_') || (*ct == '-') || isalnum(*ct))
 				;
 			t = NULL;
@@ -462,7 +476,7 @@ static char const *expand(char const *ct, size_t n, int argn, char **argv, size_
 			}
 			if(t || (t = getenv(cs))) {
 				w = strlen(t);
-				CONCATENATE(s, m, t, w);
+				RECURSIVE_CONCATENATE(s, m, t, w);
 			} else if(streq(cs, "CC")) {
 #if defined __GNUC__
 				CONCATENATE(s, m, "gcc", 3);
@@ -487,16 +501,17 @@ static char const *expand(char const *ct, size_t n, int argn, char **argv, size_
 			xfree(cs);
 		}
 #		undef CONCATENATE_EXE
+#		undef RECURSIVE_CONCATENATE
 #		undef CONCATENATE
 	}
-	if(n > 0) {
-		s = concatenate(s, m, ct, n);
+	if(*ct) {
+		s = concatenate(s, m, ct, strlen(ct));
 	}
 	return s;
 }
 
 static void version(FILE *out) {
-	fputs("m 1.0.0\n", out);
+	fputs("m 1.1.0\n", out);
 }
 
 static void usage(FILE *out) {
@@ -627,7 +642,7 @@ print_usage_and_fail:
 				}
 				for(size_t j = 0; j < rules[i].n_commands; j++) {
 					char const *cs = expand(
-						rules[i].command[j].cs, rules[i].command[j].n,
+						rules[i].command[j].cs,
 						argc - argi, &argv[argi],
 						n_rules, rules, rules[i].name.cs,
 						file
@@ -648,7 +663,7 @@ print_usage_and_fail:
 				found = true;
 				for(size_t j = 0; j < rules[i].n_commands; j++) {
 					char const *cs = expand(
-						rules[i].command[j].cs, rules[i].command[j].n,
+						rules[i].command[j].cs,
 						argc - argi, &argv[argi],
 						n_rules, rules, rules[i].name.cs,
 						file

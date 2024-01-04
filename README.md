@@ -24,8 +24,6 @@ Specifically, **m** parses line comments at the head of the file, and stops pars
 
 Variables are indicated by the `$` character; unlike make, they are not enclosed in parenthesis.
 
-Expansion is **not** recursive.
-
 ### expansion modifiers
 
 `"` causes the expansion to be enclosed in quotes.
@@ -54,14 +52,20 @@ A numeric variable name specifies the position index of an argument passed on th
 
 `$*` expands all arguments, separating them with spaces. If the quote modifier is given, the arguments are individually quoted.
 
+Expansion is recursive.
+
 #### environment
 
 Starting with `_` or an alphabetic character, and continuing with `-`, `_` and alphanumeric characters.
 
 **m** attempts to obtain the value of the corresponding environment variable; if it fails, it is silently omitted, except in the case of `$CC`, `$DBG`, and `$RM` where it provides a system related default.
 
+Expansion is recursive.
+
 #### rules
 
 Rules can also be used as variable, however, when a rule has multiple commands only the *first* command is expanded.
 
 Rules take precedence over environment variables with the same name.
+
+Expansion is recursive.
