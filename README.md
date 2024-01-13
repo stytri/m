@@ -42,7 +42,7 @@ Variables are indicated by the `$` character; unlike make, they are not enclosed
 
 `$^` expands to the name of the file - the alternate form appends `.exe` on Windows.
 
-`$.` expands to the extension part of the file.
+`$.` expands to the extension part of the file - the alternate form changes to `.exe` on Windows.
 
 `$$` results in a single `$`.
 
@@ -57,6 +57,8 @@ The alternate forms can be configured via the following rule/environment variabl
 `M_ALT_NAME` for `$^`
 
 `M_ALT_EXT` for `$.`
+
+Alternate expansion is recursive.
 
 #### arguments
 
