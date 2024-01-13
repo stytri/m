@@ -534,7 +534,7 @@ static char const *expand(char const *ct, int argn, char **argv, size_t n_rules,
 }
 
 static void version(FILE *out) {
-	fputs("m 1.2.1\n", out);
+	fputs("m 1.2.2\n", out);
 }
 
 static void usage(FILE *out) {
