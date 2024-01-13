@@ -315,15 +315,6 @@ static char const *get_file_extension(char const *file, size_t *len) {
 #define get_file_extension(get_file_extension__file,...)\
 	(get_file_extension)((get_file_extension__file),__VA_ARGS__+0)
 
-static char const *get_file_root(char const *file, size_t *len) {
-	size_t n = strlen(file), u;
-	(void)get_file_extension(file, &u);
-	if(len) *len = n - u;
-	return file;
-}
-#define get_file_root(get_file_root__file,...)\
-	(get_file_root)((get_file_root__file),__VA_ARGS__+0)
-
 static char const *get_file_name(char const *file, size_t *len) {
 	size_t n = strlen(file), m, u;
 	(void)get_file_path(file, &m);
@@ -349,6 +340,62 @@ static char const *get_var(char const *cs, size_t n_rules, struct rule const *ru
 	}
 	return cd;
 }
+
+static char const *special(char const *cs, char const *rule, size_t rule_len, char const *file, size_t file_len) {
+	char const *ct = cs;
+	char       *t  = NULL;
+	for(size_t n = 0, u = 0;;) {
+		if(*cs) {
+			if(*cs++ != '$') {
+				u++;
+				continue;
+			}
+		}
+		if(u > 0) {
+			t  = concatenate(t, n, ct, u);
+			n += u;
+		}
+		if(!*cs) break;
+		switch(*cs) {
+		case ':':
+			ct = rule, u = rule_len;
+			goto common;
+		case '!':
+			ct = file, u = file_len;
+			goto common;
+		case '/':
+			ct = get_file_path(file, &u);
+			goto common;
+		case '^':
+			ct = get_file_name(file, &u);
+			goto common;
+		case '$':
+			ct = cs, u = 1;
+		common  :
+			t  = concatenate(t, n, ct, u);
+			n += u;
+			cs++;
+			ct = cs, u = 0;
+		default :
+			continue;
+		}
+	}
+	return t;
+}
+
+#if defined _WIN32
+#	define M_ALT_RULE  "$:.exe"
+#	define M_ALT_FILE  "$/$^.exe"
+#	define M_ALT_PATH  "$/"
+#	define M_ALT_NAME  "$^.exe"
+#	define M_ALT_EXT   ".exe"
+#else
+#	define M_ALT_RULE  "$:"
+#	define M_ALT_FILE  "$!"
+#	define M_ALT_PATH  "$/"
+#	define M_ALT_NAME  "$^"
+#	define M_ALT_EXT   "$."
+#endif
 
 static char const *expand(char const *ct, int argn, char **argv, size_t n_rules, struct rule const *rules, char const *rule, char const *file) {
 	size_t rule_len = strlen(rule);
@@ -395,24 +442,15 @@ static char const *expand(char const *ct, int argn, char **argv, size_t n_rules,
 				M += 1; \
 			} \
 		} while(0)
-#if defined _WIN32
-#		define CONCATENATE_EXE(S,M,T,N) do { \
-			T  = duplicate(T, N); \
-			T  = concatenate(T, N, ".exe", 4); \
-			N += 4; \
-			CONCATENATE(S, M, T, N); \
-			xfree(T); \
-		} while(0)
-#else
-#		define CONCATENATE_EXE(S,M,T,N)  \
-			CONCATENATE(S, M, T, N)
-#endif
 		switch(*ct) {
 		case ':':
 			ct++;
 			if(alt) {
-				cv = rule, w = rule_len;
-				CONCATENATE_EXE(s, m, cv, w);
+				cs = get_var("M_ALT_RULE", n_rules, rules, M_ALT_RULE);
+				cv = special(cs, rule, rule_len, file, file_len);
+				w  = strlen(cv);
+				CONCATENATE(s, m, cv, w);
+				xfree(cv);
 				continue;
 			}
 			CONCATENATE(s, m, rule, rule_len);
@@ -420,28 +458,51 @@ static char const *expand(char const *ct, int argn, char **argv, size_t n_rules,
 		case '!':
 			ct++;
 			if(alt) {
-				cv = get_file_root(file, &w);
-				CONCATENATE_EXE(s, m, cv, w);
+				cs = get_var("M_ALT_FILE", n_rules, rules, M_ALT_FILE);
+				cv = special(cs, rule, rule_len, file, file_len);
+				w  = strlen(cv);
+				CONCATENATE(s, m, cv, w);
+				xfree(cv);
 				continue;
 			}
 			CONCATENATE(s, m, file, file_len);
 			continue;
 		case '/':
 			ct++;
+			if(alt) {
+				cs = get_var("M_ALT_PATH", n_rules, rules, M_ALT_PATH);
+				cv = special(cs, rule, rule_len, file, file_len);
+				w  = strlen(cv);
+				CONCATENATE(s, m, cv, w);
+				xfree(cv);
+				continue;
+			}
 			cv = get_file_path(file, &w);
 			CONCATENATE(s, m, cv, w);
 			continue;
 		case '^':
 			ct++;
-			cv = get_file_name(file, &w);
 			if(alt) {
-				CONCATENATE_EXE(s, m, cv, w);
+				cs = get_var("M_ALT_MAME", n_rules, rules, M_ALT_NAME);
+				cv = special(cs, rule, rule_len, file, file_len);
+				w  = strlen(cv);
+				CONCATENATE(s, m, cv, w);
+				xfree(cv);
 				continue;
 			}
+			cv = get_file_name(file, &w);
 			CONCATENATE(s, m, cv, w);
 			continue;
 		case '.':
 			ct++;
+			if(alt) {
+				cs = get_var("M_ALT_EXT", n_rules, rules, M_ALT_EXT);
+				cv = special(cs, rule, rule_len, file, file_len);
+				w  = strlen(cv);
+				CONCATENATE(s, m, cv, w);
+				xfree(cv);
+				continue;
+			}
 			cv = get_file_extension(file, &w);
 			CONCATENATE(s, m, cv, w);
 			continue;
@@ -453,7 +514,7 @@ static char const *expand(char const *ct, int argn, char **argv, size_t n_rules,
 					m += 1;
 				}
 				cv = argv[argi];
-				w = strlen(cv);
+				w  = strlen(cv);
 				CONCATENATE(s, m, cv, w);
 			}
 			continue;
@@ -471,7 +532,7 @@ static char const *expand(char const *ct, int argn, char **argv, size_t n_rules,
 				;
 			if(argi < argn) {
 				cv = argv[argi];
-				w = strlen(cv);
+				w  = strlen(cv);
 				RECURSIVE_CONCATENATE(s, m, cv, w);
 			}
 		} else if((*ct == '_') || isalpha(*ct)) {
@@ -519,7 +580,7 @@ static char const *expand(char const *ct, int argn, char **argv, size_t n_rules,
 }
 
 static void version(FILE *out) {
-	fputs("m 1.1.0\n", out);
+	fputs("m 1.2.0\n", out);
 }
 
 static void usage(FILE *out) {
