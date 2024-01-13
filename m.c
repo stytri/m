@@ -341,48 +341,6 @@ static char const *get_var(char const *cs, size_t n_rules, struct rule const *ru
 	return cd;
 }
 
-static char const *special(char const *cs, char const *rule, size_t rule_len, char const *file, size_t file_len) {
-	char const *ct = cs;
-	char       *t  = NULL;
-	for(size_t n = 0, u = 0;;) {
-		if(*cs) {
-			if(*cs++ != '$') {
-				u++;
-				continue;
-			}
-		}
-		if(u > 0) {
-			t  = concatenate(t, n, ct, u);
-			n += u;
-		}
-		if(!*cs) break;
-		switch(*cs) {
-		case ':':
-			ct = rule, u = rule_len;
-			goto common;
-		case '!':
-			ct = file, u = file_len;
-			goto common;
-		case '/':
-			ct = get_file_path(file, &u);
-			goto common;
-		case '^':
-			ct = get_file_name(file, &u);
-			goto common;
-		case '$':
-			ct = cs, u = 1;
-		common  :
-			t  = concatenate(t, n, ct, u);
-			n += u;
-			cs++;
-			ct = cs, u = 0;
-		default :
-			continue;
-		}
-	}
-	return t;
-}
-
 #if defined _WIN32
 #	define M_ALT_RULE  "$:.exe"
 #	define M_ALT_FILE  "$/$^.exe"
@@ -447,7 +405,7 @@ static char const *expand(char const *ct, int argn, char **argv, size_t n_rules,
 			ct++;
 			if(alt) {
 				cs = get_var("M_ALT_RULE", n_rules, rules, M_ALT_RULE);
-				cv = special(cs, rule, rule_len, file, file_len);
+				cv = expand(cs, argn, argv, n_rules, rules, rule, file);;
 				w  = strlen(cv);
 				CONCATENATE(s, m, cv, w);
 				xfree(cv);
@@ -459,7 +417,7 @@ static char const *expand(char const *ct, int argn, char **argv, size_t n_rules,
 			ct++;
 			if(alt) {
 				cs = get_var("M_ALT_FILE", n_rules, rules, M_ALT_FILE);
-				cv = special(cs, rule, rule_len, file, file_len);
+				cv = expand(cs, argn, argv, n_rules, rules, rule, file);;
 				w  = strlen(cv);
 				CONCATENATE(s, m, cv, w);
 				xfree(cv);
@@ -471,7 +429,7 @@ static char const *expand(char const *ct, int argn, char **argv, size_t n_rules,
 			ct++;
 			if(alt) {
 				cs = get_var("M_ALT_PATH", n_rules, rules, M_ALT_PATH);
-				cv = special(cs, rule, rule_len, file, file_len);
+				cv = expand(cs, argn, argv, n_rules, rules, rule, file);;
 				w  = strlen(cv);
 				CONCATENATE(s, m, cv, w);
 				xfree(cv);
@@ -484,7 +442,7 @@ static char const *expand(char const *ct, int argn, char **argv, size_t n_rules,
 			ct++;
 			if(alt) {
 				cs = get_var("M_ALT_MAME", n_rules, rules, M_ALT_NAME);
-				cv = special(cs, rule, rule_len, file, file_len);
+				cv = expand(cs, argn, argv, n_rules, rules, rule, file);;
 				w  = strlen(cv);
 				CONCATENATE(s, m, cv, w);
 				xfree(cv);
@@ -497,7 +455,7 @@ static char const *expand(char const *ct, int argn, char **argv, size_t n_rules,
 			ct++;
 			if(alt) {
 				cs = get_var("M_ALT_EXT", n_rules, rules, M_ALT_EXT);
-				cv = special(cs, rule, rule_len, file, file_len);
+				cv = expand(cs, argn, argv, n_rules, rules, rule, file);;
 				w  = strlen(cv);
 				CONCATENATE(s, m, cv, w);
 				xfree(cv);
@@ -580,7 +538,7 @@ static char const *expand(char const *ct, int argn, char **argv, size_t n_rules,
 }
 
 static void version(FILE *out) {
-	fputs("m 1.2.0\n", out);
+	fputs("m 1.2.1\n", out);
 }
 
 static void usage(FILE *out) {
