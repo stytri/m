@@ -385,6 +385,22 @@ static char const *expand(char const *ct, int argn, char **argv, size_t n_rules,
 				M += 1; \
 			} \
 		} while(0)
+#		define ALTERNATE_CONCATENATE(S,M,T) do { \
+			if(quoted) { \
+				S  = concatenate(S, M, "\"", 1); \
+				M += 1; \
+			} \
+			char const *ALTERNATE_CONCATENATE__V = get_var(#T, n_rules, rules, T); \
+			char const *ALTERNATE_CONCATENATE__T = expand(ALTERNATE_CONCATENATE__V, argn, argv, n_rules, rules, rule, file);\
+			size_t      ALTERNATE_CONCATENATE__N = strlen(ALTERNATE_CONCATENATE__T); \
+			S  = concatenate(S, M, ALTERNATE_CONCATENATE__T, ALTERNATE_CONCATENATE__N); \
+			M += ALTERNATE_CONCATENATE__N; \
+			xfree(ALTERNATE_CONCATENATE__T);\
+			if(quoted) { \
+				S  = concatenate(S, M, "\"", 1); \
+				M += 1; \
+			} \
+		} while(0)
 #		define RECURSIVE_CONCATENATE(S,M,T,N) do { \
 			if(quoted) { \
 				S  = concatenate(S, M, "\"", 1); \
@@ -404,11 +420,7 @@ static char const *expand(char const *ct, int argn, char **argv, size_t n_rules,
 		case ':':
 			ct++;
 			if(alt) {
-				cs = get_var("M_ALT_RULE", n_rules, rules, M_ALT_RULE);
-				cv = expand(cs, argn, argv, n_rules, rules, rule, file);;
-				w  = strlen(cv);
-				CONCATENATE(s, m, cv, w);
-				xfree(cv);
+				ALTERNATE_CONCATENATE(s, m, M_ALT_RULE);
 				continue;
 			}
 			CONCATENATE(s, m, rule, rule_len);
@@ -416,11 +428,7 @@ static char const *expand(char const *ct, int argn, char **argv, size_t n_rules,
 		case '!':
 			ct++;
 			if(alt) {
-				cs = get_var("M_ALT_FILE", n_rules, rules, M_ALT_FILE);
-				cv = expand(cs, argn, argv, n_rules, rules, rule, file);;
-				w  = strlen(cv);
-				CONCATENATE(s, m, cv, w);
-				xfree(cv);
+				ALTERNATE_CONCATENATE(s, m, M_ALT_FILE);
 				continue;
 			}
 			CONCATENATE(s, m, file, file_len);
@@ -428,11 +436,7 @@ static char const *expand(char const *ct, int argn, char **argv, size_t n_rules,
 		case '/':
 			ct++;
 			if(alt) {
-				cs = get_var("M_ALT_PATH", n_rules, rules, M_ALT_PATH);
-				cv = expand(cs, argn, argv, n_rules, rules, rule, file);;
-				w  = strlen(cv);
-				CONCATENATE(s, m, cv, w);
-				xfree(cv);
+				ALTERNATE_CONCATENATE(s, m, M_ALT_PATH);
 				continue;
 			}
 			cv = get_file_path(file, &w);
@@ -441,11 +445,7 @@ static char const *expand(char const *ct, int argn, char **argv, size_t n_rules,
 		case '^':
 			ct++;
 			if(alt) {
-				cs = get_var("M_ALT_MAME", n_rules, rules, M_ALT_NAME);
-				cv = expand(cs, argn, argv, n_rules, rules, rule, file);;
-				w  = strlen(cv);
-				CONCATENATE(s, m, cv, w);
-				xfree(cv);
+				ALTERNATE_CONCATENATE(s, m, M_ALT_NAME);
 				continue;
 			}
 			cv = get_file_name(file, &w);
@@ -454,11 +454,7 @@ static char const *expand(char const *ct, int argn, char **argv, size_t n_rules,
 		case '.':
 			ct++;
 			if(alt) {
-				cs = get_var("M_ALT_EXT", n_rules, rules, M_ALT_EXT);
-				cv = expand(cs, argn, argv, n_rules, rules, rule, file);;
-				w  = strlen(cv);
-				CONCATENATE(s, m, cv, w);
-				xfree(cv);
+				ALTERNATE_CONCATENATE(s, m, M_ALT_EXT);
 				continue;
 			}
 			cv = get_file_extension(file, &w);
