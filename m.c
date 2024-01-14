@@ -1,24 +1,3 @@
-//
-// Inspired by https://github.com/michaelfm1211/ec
-//
-// ::compile
-// :+  $CC $CFLAGS $SMALL-BINARY
-// :+      -DNDEBUG=1 -O3 -o $+^ $"!
-//
-// ::debug
-// :+  $CC $CFLAGS
-// :+      -Og -g -o $+: $"!
-// :&  $DBG $"* $+:
-// :&  $RM $+:
-//
-// ::CFLAGS  -Wall -Wextra -D__USE_MINGW_ANSI_STDIO=1
-//
-// ::SMALL-BINARY
-// :+      -fmerge-all-constants -ffunction-sections -fdata-sections
-// :+      -fno-unwind-tables -fno-asynchronous-unwind-tables
-// :+      -Wl,--gc-sections -s
-//
-
 /*
 MIT License
 
@@ -42,6 +21,27 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
+
+//
+// Inspired by https://github.com/michaelfm1211/ec
+//
+// ::compile
+// :+  $CC $CFLAGS $SMALL-BINARY
+// :+      -DNDEBUG=1 -O3 -o $+^ $"!
+//
+// ::debug
+// :+  $CC $CFLAGS
+// :+      -Og -g -o $+: $"!
+// :&  $DBG $"* $+:
+// :&  $RM $+:
+//
+// ::CFLAGS  -Wall -Wextra -D__USE_MINGW_ANSI_STDIO=1
+//
+// ::SMALL-BINARY
+// :+      -fmerge-all-constants -ffunction-sections -fdata-sections
+// :+      -fno-unwind-tables -fno-asynchronous-unwind-tables
+// :+      -Wl,--gc-sections -s
+//
 
 #include <stddef.h>
 #include <stdlib.h>
@@ -132,23 +132,26 @@ static char *read_line(FILE *in) {
 	static size_t z = 0;
 	for(size_t n = 0;;) {
 		int c = fgetc(in);
-		if(c != EOF) {
+		if((c != EOF) && (c != '\n')) {
 			if(n == z) {
 				z = (z + 1) + (z >> 1);
 				s = xrealloc(s, sizeof(*s), z + 1);
 			}
-			if(c != '\n') {
-				s[n++] = c;
-				continue;
-			}
+			s[n++] = c;
+			continue;
+		}
+		if(n > 0) {
 			char *t = s;
 			while(isspace(*t)) t++, n--;
 			while((n > 0) && isspace(t[n - 1])) n--;
 			t[n] = '\0';
 			return t;
 		}
+		if(c != EOF) {
+			return "";
+		}
+		return NULL;
 	}
-	return NULL;
 }
 
 struct string {
@@ -227,7 +230,10 @@ static size_t read_rules(char const *file, FILE *in, struct comment const *com, 
 	size_t         n = 0;
 
 	size_t lineno = 1;
-	for(char const *s; is_comment(com, (s = read_line(in))); ++lineno) {
+	char const *s = read_line(in);
+	for(; s && !is_comment(com, s); s = read_line(in), ++lineno)
+		;
+	for(; s &&  is_comment(com, s); s = read_line(in), ++lineno) {
 		for(s += com->comment.n; isspace(*s); s++);
 		if(is_continuation(com, s)) {
 			if(!p) {
@@ -534,7 +540,7 @@ static char const *expand(char const *ct, int argn, char **argv, size_t n_rules,
 }
 
 static void version(FILE *out) {
-	fputs("m 1.2.2\n", out);
+	fputs("m 1.2.3\n", out);
 }
 
 static void usage(FILE *out) {
