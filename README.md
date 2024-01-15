@@ -4,7 +4,7 @@ a mini make
 
 Inspired by https://github.com/michaelfm1211/ec
 
-Uses a comment block at the head of the source file to specify how to compile it.
+Uses a comment block in the source file to specify how to compile it.
 
 (See the **m** source file for an example of usage.)
 
@@ -12,7 +12,7 @@ The comment type is determined from the file extension (see the function `get_co
 
 ## Rule Format
 
-Specifically, **m** parses line comments at the head of the file, and stops parsing at the first non-comment. For each comment it looks for the following character sequences (after skipping any space/tab characters):
+Specifically, **m** first scans for a starting line comment, then parses a block of line comments, and stops parsing at a non-comment. For each comment it looks for the following character sequences (after skipping any space/tab characters):
 
 `::` Introduces a new rule. The rule name - which is a sequence of alphanumeric, as well as the `_` and `-`, characters - follows. The remainder of the line is the command to be executed.
 
