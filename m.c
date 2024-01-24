@@ -540,7 +540,7 @@ static char const *expand(char const *ct, int argn, char **argv, size_t n_rules,
 }
 
 static void version(FILE *out) {
-	fputs("m 1.2.3\n", out);
+	fputs("m 1.3.0\n", out);
 }
 
 static void usage(FILE *out) {
@@ -550,7 +550,7 @@ static void usage(FILE *out) {
 	fprintf(out, "\t-v, --version      display version\n");
 	fprintf(out, "\t-r, --rules        display available rules\n");
 	fprintf(out, "\t-c, --commands     display commands executed by rules\n");
-	fprintf(out, "\t-e, --echo         display commands as they are executed\n");
+	fprintf(out, "\t-q, --quiet        do not display commands as they are executed\n");
 	fprintf(out, "\t-s, --sigils       define rule sigils, has the arguments:\n");
 	fprintf(out, "\t                   COMMENT       - the character sequence of an inline comment\n");
 	fprintf(out, "\t                   RULE          - the character sequence indicating a new rule\n");
@@ -575,7 +575,7 @@ int main(int argc__actual, char **argv__actual) {
 #else
 int main(int argc, char **argv) {
 #endif
-	bool echo = false;
+	bool quiet = false;
 	bool list_rules = false;
 	bool list_commands = false;
 	struct comment const *com = NULL;
@@ -618,8 +618,8 @@ int main(int argc, char **argv) {
 			} else {
 				goto print_usage_and_fail;
 			}
-		} else if(is_one_of(argv[argi], "-e", "--echo")) {
-			echo = true;
+		} else if(is_one_of(argv[argi], "-q", "--quiet")) {
+			quiet = true;
 		} else {
 			goto print_usage_and_fail;
 		}
@@ -697,7 +697,7 @@ print_usage_and_fail:
 						n_rules, rules, rules[i].name.cs,
 						file
 					);
-					if(echo) {
+					if(!quiet) {
 						puts(cs);
 					}
 					ec = system(cs);
