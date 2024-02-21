@@ -529,8 +529,8 @@ static char const *expand(char const *ct, int argn, char **argv, size_t n_rules,
 			}
 			xfree(cs);
 		}
-#		undef CONCATENATE_EXE
 #		undef RECURSIVE_CONCATENATE
+#		undef ALTERNATE_CONCATENATE
 #		undef CONCATENATE
 	}
 	if(*ct) {
