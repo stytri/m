@@ -231,53 +231,55 @@ static size_t read_rules(char const *file, FILE *in, struct comment const *com, 
 
 	size_t lineno = 1;
 	char const *s = read_line(in);
-	for(; s && !is_comment(com, s); s = read_line(in), ++lineno)
-		;
-	for(; s &&  is_comment(com, s); s = read_line(in), ++lineno) {
-		for(s += com->comment.n; isspace(*s); s++);
-		if(is_continuation(com, s)) {
-			if(!p) {
-				fprintf(stderr, "%s:%zu no rule\n", file, lineno);
+	for(bool found_rule = false; !found_rule; ) {
+		for(; s && !is_comment(com, s); s = read_line(in), ++lineno)
+			;
+		for(; s &&  is_comment(com, s); s = read_line(in), ++lineno) {
+			for(s += com->comment.n; isspace(*s); s++);
+			if(is_continuation(com, s)) {
+				if(!p) {
+					fprintf(stderr, "%s:%zu no rule\n", file, lineno);
+					continue;
+				}
+				s += com->continuation.n;
+				if(*s) for(size_t o = (c->n > 0); isspace(*(s + o)); s++);
+				size_t m = strlen(s);
+				c->cs    = concatenate(c->cs, c->n, s, m);
+				c->n    += m;
 				continue;
 			}
-			s += com->continuation.n;
-			if(*s) for(size_t o = (c->n > 0); isspace(*(s + o)); s++);
-			size_t m = strlen(s);
-			c->cs    = concatenate(c->cs, c->n, s, m);
-			c->n    += m;
-			continue;
-		}
-		if(is_aggregation(com, s)) {
-			if(!p) {
-				fprintf(stderr, "%s:%zu no rule\n", file, lineno);
+			if(is_aggregation(com, s)) {
+				if(!p) {
+					fprintf(stderr, "%s:%zu no rule\n", file, lineno);
+					continue;
+				}
+				for(s += com->aggregation.n; isspace(*s); s++);
+				goto append_command;
+			}
+			if(is_rule(com, s)) {
+				found_rule = true;
+				for(s += com->rule.n; isspace(*s); s++);
+				char const *cs = s;
+				while((*s == '_') || (*s == '-') || isalnum(*s)) s++;
+				r             = xrealloc(r, sizeof(*r), n + 1);
+				p             = &r[n++];
+				p->name.n     = s - cs;
+				p->name.cs    = duplicate(cs, p->name.n);
+				p->command    = NULL;
+				p->n_commands = 0;
+				if(*s) s++;
+	append_command:
+				while(isspace(*s)) s++;
+				p->command = xrealloc(p->command, sizeof(*(p->command)), p->n_commands + 1);
+				c          = &p->command[p->n_commands++];
+				c->n       = strlen(s);
+				c->cs      = duplicate(s, c->n);
 				continue;
 			}
-			for(s += com->aggregation.n; isspace(*s); s++);
-			goto append_command;
+			p = NULL;
+			c = NULL;
 		}
-		if(is_rule(com, s)) {
-			for(s += com->rule.n; isspace(*s); s++);
-			char const *cs = s;
-			while((*s == '_') || (*s == '-') || isalnum(*s)) s++;
-			r             = xrealloc(r, sizeof(*r), n + 1);
-			p             = &r[n++];
-			p->name.n     = s - cs;
-			p->name.cs    = duplicate(cs, p->name.n);
-			p->command    = NULL;
-			p->n_commands = 0;
-			if(*s) s++;
-append_command:
-			while(isspace(*s)) s++;
-			p->command = xrealloc(p->command, sizeof(*(p->command)), p->n_commands + 1);
-			c          = &p->command[p->n_commands++];
-			c->n       = strlen(s);
-			c->cs      = duplicate(s, c->n);
-			continue;
-		}
-		p = NULL;
-		c = NULL;
 	}
-
 	if(!ferror(in)) {
 		*rules = r;
 		return n;
@@ -540,7 +542,7 @@ static char const *expand(char const *ct, int argn, char **argv, size_t n_rules,
 }
 
 static void version(FILE *out) {
-	fputs("m 1.3.1\n", out);
+	fputs("m 2.0.0\n", out);
 }
 
 static void usage(FILE *out) {
