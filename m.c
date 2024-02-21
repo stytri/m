@@ -237,10 +237,7 @@ static size_t read_rules(char const *file, FILE *in, struct comment const *com, 
 		for(; s &&  is_comment(com, s); s = read_line(in), ++lineno) {
 			for(s += com->comment.n; isspace(*s); s++);
 			if(is_continuation(com, s)) {
-				if(!p) {
-					fprintf(stderr, "%s:%zu no rule\n", file, lineno);
-					continue;
-				}
+				if(!p) continue;
 				s += com->continuation.n;
 				if(*s) for(size_t o = (c->n > 0); isspace(*(s + o)); s++);
 				size_t m = strlen(s);
@@ -249,10 +246,7 @@ static size_t read_rules(char const *file, FILE *in, struct comment const *com, 
 				continue;
 			}
 			if(is_aggregation(com, s)) {
-				if(!p) {
-					fprintf(stderr, "%s:%zu no rule\n", file, lineno);
-					continue;
-				}
+				if(!p) continue;
 				for(s += com->aggregation.n; isspace(*s); s++);
 				goto append_command;
 			}
@@ -542,7 +536,7 @@ static char const *expand(char const *ct, int argn, char **argv, size_t n_rules,
 }
 
 static void version(FILE *out) {
-	fputs("m 2.0.0\n", out);
+	fputs("m 2.0.1\n", out);
 }
 
 static void usage(FILE *out) {
