@@ -35,7 +35,11 @@ SOFTWARE.
 // :&  $DBG $"* $+:
 // :&  $RM $+:
 //
-// ::CFLAGS  -Wall -Wextra -D__USE_MINGW_ANSI_STDIO=1
+// ::CFLAGS
+// :+      -Wall -Wextra $WINFLAGS
+//
+// ::windir?WINFLAGS
+// :+      -D__USE_MINGW_ANSI_STDIO=1
 //
 // ::SMALL-BINARY
 // :+      -fmerge-all-constants -ffunction-sections -fdata-sections
@@ -224,41 +228,70 @@ struct rule {
 	struct string *command;
 };
 
+static char const *get_var(char const *cs, size_t n_rules, struct rule const *rules, char const *cd) {
+	char const *ct = NULL;
+	for(size_t i = 0; i < n_rules; i++) {
+		if(streq(cs, rules[i].name.cs)) {
+			if(rules[i].n_commands > 0) {
+				ct = rules[i].command[0].cs;
+			}
+			break;
+		}
+	}
+	if(ct || (ct = getenv(cs))) {
+		return ct;
+	}
+	return cd;
+}
+
 static size_t read_rules(char const *file, FILE *in, struct comment const *com, struct rule **rules) {
 	struct rule   *r = NULL, *p = NULL;
 	struct string *c = NULL;
-	size_t         n = 0;
+	size_t         n = 0, m;
 
 	size_t lineno = 1;
-	char const *s = read_line(in);
-	for(bool found_rule = false; !found_rule; ) {
+	char const *s = read_line(in), *cs;
+	for(bool found_rule = false, skip_rule = false; !found_rule; ) {
 		for(; s && !is_comment(com, s); s = read_line(in), ++lineno)
 			;
 		for(; s &&  is_comment(com, s); s = read_line(in), ++lineno) {
 			for(s += com->comment.n; isspace(*s); s++);
 			if(is_continuation(com, s)) {
-				if(!p) continue;
+				if(skip_rule || !p) continue;
 				s += com->continuation.n;
 				if(*s) for(size_t o = (c->n > 0); isspace(*(s + o)); s++);
-				size_t m = strlen(s);
-				c->cs    = concatenate(c->cs, c->n, s, m);
-				c->n    += m;
+				m = strlen(s);
+				c->cs = concatenate(c->cs, c->n, s, m);
+				c->n += m;
 				continue;
 			}
 			if(is_aggregation(com, s)) {
-				if(!p) continue;
+				if(skip_rule || !p) continue;
 				for(s += com->aggregation.n; isspace(*s); s++);
 				goto append_command;
 			}
 			if(is_rule(com, s)) {
 				found_rule = true;
 				for(s += com->rule.n; isspace(*s); s++);
-				char const *cs = s;
-				while((*s == '_') || (*s == '-') || isalnum(*s)) s++;
+				for(cs = s; (*s == '_') || (*s == '-') || isalnum(*s); s++);
+				m = s - cs;
+				cs = duplicate(cs, m);
+				skip_rule = false;
+				switch(*s) {
+				case '?': skip_rule = true; // fall-through
+				case '!':
+					if(get_var(cs, n, r, NULL)) skip_rule = !skip_rule;
+					xfree(cs);
+					if(skip_rule) continue;
+					s++;
+					for(cs = s; (*s == '_') || (*s == '-') || isalnum(*s); s++);
+					m = s - cs;
+					cs = duplicate(cs, m);
+				}
 				r             = xrealloc(r, sizeof(*r), n + 1);
 				p             = &r[n++];
-				p->name.n     = s - cs;
-				p->name.cs    = duplicate(cs, p->name.n);
+				p->name.n     = m;
+				p->name.cs    = cs;
 				p->command    = NULL;
 				p->n_commands = 0;
 				if(*s) s++;
@@ -326,22 +359,6 @@ static char const *get_file_name(char const *file, size_t *len) {
 }
 #define get_file_name(get_file_name__file,...)\
 	(get_file_name)((get_file_name__file),__VA_ARGS__+0)
-
-static char const *get_var(char const *cs, size_t n_rules, struct rule const *rules, char const *cd) {
-	char const *ct = NULL;
-	for(size_t i = 0; i < n_rules; i++) {
-		if(streq(cs, rules[i].name.cs)) {
-			if(rules[i].n_commands > 0) {
-				ct = rules[i].command[0].cs;
-			}
-			break;
-		}
-	}
-	if(ct || (ct = getenv(cs))) {
-		return ct;
-	}
-	return cd;
-}
 
 #if defined _WIN32
 #	define M_ALT_RULE  "$:.exe"
@@ -536,7 +553,7 @@ static char const *expand(char const *ct, int argn, char **argv, size_t n_rules,
 }
 
 static void version(FILE *out) {
-	fputs("m 2.0.1\n", out);
+	fputs("m 2.1.0\n", out);
 }
 
 static void usage(FILE *out) {
