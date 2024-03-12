@@ -88,4 +88,6 @@ Rules can also be used as variable, however, when a rule has multiple commands o
 
 Rules take precedence over environment variables with the same name.
 
+The special rule `-` matches any rule name passed on the command line; it should therefore be placed _after_ all other rules that can specified on the command line.
+
 Expansion is recursive.

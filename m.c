@@ -553,7 +553,7 @@ static char const *expand(char const *ct, int argn, char **argv, size_t n_rules,
 }
 
 static void version(FILE *out) {
-	fputs("m 2.1.0\n", out);
+	fputs("m 2.2.0\n", out);
 }
 
 static void usage(FILE *out) {
@@ -701,13 +701,13 @@ print_usage_and_fail:
 		if(streq(rule, "-")) rule = rules[0].name.cs;
 		bool found = false;
 		for(size_t i = 0; i < n_rules; i++) {
-			if(strcmp(rule, rules[i].name.cs) == 0) {
+			if(streq(rule, rules[i].name.cs) || streq("-", rules[i].name.cs)) {
 				found = true;
 				for(size_t j = 0; j < rules[i].n_commands; j++) {
 					char const *cs = expand(
 						rules[i].command[j].cs,
 						argc - argi, &argv[argi],
-						n_rules, rules, rules[i].name.cs,
+						n_rules, rules, rule,
 						file
 					);
 					if(!quiet) {
