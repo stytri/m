@@ -56,6 +56,8 @@ SOFTWARE.
 #include <ctype.h>
 #include <errno.h>
 
+static bool quiet = false;
+
 #define perror(...)\
 	(perror)(__VA_ARGS__+0)
 
@@ -224,6 +226,7 @@ static int is_aggregation(struct comment const *com, char const *ln) {
 
 struct rule {
 	struct string  name;
+	char const    *depends;
 	size_t         n_commands;
 	struct string *command;
 };
@@ -292,8 +295,15 @@ static size_t read_rules(char const *file, FILE *in, struct comment const *com, 
 				p             = &r[n++];
 				p->name.n     = m;
 				p->name.cs    = cs;
+				p->depends    = NULL;
 				p->command    = NULL;
 				p->n_commands = 0;
+				if(*s == ':') {
+					s++;
+					for(cs = s; (*s == ':') || (*s == '_') || (*s == '-') || isalnum(*s); s++);
+					m = s - cs;
+					p->depends = duplicate(cs, m);
+				}
 				if(*s) s++;
 	append_command:
 				while(isspace(*s)) s++;
@@ -552,8 +562,51 @@ static char const *expand(char const *ct, int argn, char **argv, size_t n_rules,
 	return s;
 }
 
+static int execute(int argn, char **argv, size_t n_rules, struct rule const *rules, char const *rule, char const *file) {
+	int ec = EXIT_SUCCESS;
+	bool found = false;
+	for(size_t i = 0; (ec == EXIT_SUCCESS) && (i < n_rules); i++) {
+		if(streq(rule, rules[i].name.cs) || streq("-", rules[i].name.cs)) {
+			found = true;
+			if(rules[i].depends) {
+				char const *cs = rules[i].depends;
+				for(char const *cr; (ec == EXIT_SUCCESS); cs = cr + 1) {
+					cr = strchr(cs, ':');
+					size_t m = cr ? (size_t)(cr - cs) : strlen(cs);
+					char const *ct = duplicate(cs, m);
+					ec = execute(argn, argv, n_rules, rules, ct, file);
+					xfree(ct);
+					if(!cr) break;
+					if(ec) break;
+				}
+			}
+			for(size_t j = 0;
+				(ec == EXIT_SUCCESS) && (j < rules[i].n_commands);
+				j++
+			) {
+				char const *cs = expand(
+					rules[i].command[j].cs,
+					argn, argv,
+					n_rules, rules, rule,
+					file
+				);
+				if(!quiet) {
+					puts(cs);
+				}
+				ec = system(cs);
+				xfree(cs);
+			}
+			break;
+		}
+	}
+	if(!found) {
+		fprintf(stderr, "%s: rule '%s' undefined\n", file, rule);
+	}
+	return ec;
+}
+
 static void version(FILE *out) {
-	fputs("m 2.2.0\n", out);
+	fputs("m 2.3.0\n", out);
 }
 
 static void usage(FILE *out) {
@@ -588,7 +641,6 @@ int main(int argc__actual, char **argv__actual) {
 #else
 int main(int argc, char **argv) {
 #endif
-	bool quiet = false;
 	bool list_rules = false;
 	bool list_commands = false;
 	struct comment const *com = NULL;
@@ -699,32 +751,7 @@ print_usage_and_fail:
 	} else {
 		char const *rule = (argi < argc) ? argv[argi++] : "-";
 		if(streq(rule, "-")) rule = rules[0].name.cs;
-		bool found = false;
-		for(size_t i = 0; i < n_rules; i++) {
-			if(streq(rule, rules[i].name.cs) || streq("-", rules[i].name.cs)) {
-				found = true;
-				for(size_t j = 0; j < rules[i].n_commands; j++) {
-					char const *cs = expand(
-						rules[i].command[j].cs,
-						argc - argi, &argv[argi],
-						n_rules, rules, rule,
-						file
-					);
-					if(!quiet) {
-						puts(cs);
-					}
-					ec = system(cs);
-					xfree(cs);
-					if(ec != EXIT_SUCCESS) {
-						break;
-					}
-				}
-				break;
-			}
-		}
-		if(!found) {
-			fprintf(stderr, "%s: rule '%s' undefined\n", file, rule);
-		}
+		ec = execute(argc - argi, &argv[argi], n_rules, rules, rule, file);
 	}
 
 	return ec;

@@ -14,7 +14,7 @@ The comment type is determined from the file extension (see the function `get_co
 
 Specifically, **m** first scans for a starting line comment, then parses a block of line comments, and stops parsing at a non-comment. For each comment it looks for the following character sequences (after skipping any space/tab characters):
 
-`::` Introduces a new rule. There follows an optional rule condition, and then the rule name. The rule name - which is a sequence of alphanumeric, as well as the `_` and `-`, characters - follows. The remainder of the line is the command to be executed.
+`::` Introduces a new rule. There follows an optional rule condition, and then the rule name. The rule name - which is a sequence of alphanumeric, as well as the `_` and `-`, characters - follows. This is followed by an optional dependency list. The remainder of the line is the command to be executed.
 
 `:+` Appends the remainder of the line to the current rule command.
 
@@ -25,6 +25,8 @@ A rule condition is a name followed by either `?` or `!`:
 `?` indicates that the rule is enabled if there is an existing rule or environment variable of the given name.
 
 `!` indicates that the rule is enabled if there is no existing rule or environment variable of the given name.
+
+A dependency list consists of one or more of: a colon (`:`) and a rule name. Dependency rules are executed first.
 
 ## Variable Expansion
 
