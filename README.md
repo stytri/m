@@ -20,11 +20,13 @@ Specifically, **m** first scans for a starting line comment, then parses a block
 
 `:&` Adds another command to be executed by the rule.
 
-A rule condition is a name followed by either `?` or `!`:
+A rule condition is either a name or a shell command followed by either `?` or `!`:
 
-`?` indicates that the rule is enabled if there is an existing rule or environment variable of the given name.
+`?` indicates that the rule is enabled if there is an existing rule or environment variable of the given name, or the execution of the shell command is succesful.
 
-`!` indicates that the rule is enabled if there is no existing rule or environment variable of the given name.
+`!` indicates that the rule is enabled if there is no existing rule or environment variable of the given name, or the execution of the shell command is unsuccesful.
+
+A shell command is a character sequence enclosed by the `(` and `)` characters.
 
 A dependency list consists of one or more of: a colon (`:`) and a rule name. Dependency rules are executed first.
 

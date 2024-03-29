@@ -276,17 +276,32 @@ static size_t read_rules(char const *file, FILE *in, struct comment const *com, 
 			if(is_rule(com, s)) {
 				found_rule = true;
 				for(s += com->rule.n; isspace(*s); s++);
-				for(cs = s; (*s == '_') || (*s == '-') || isalnum(*s); s++);
+				bool system_call = (*s == '(');
+				if(system_call) {
+					for(cs = s; *s && (*s != ')'); s++);
+					if(*s) s++;
+				} else {
+					for(cs = s; (*s == '_') || (*s == '-') || isalnum(*s); s++);
+				}
 				m = s - cs;
 				cs = duplicate(cs, m);
 				skip_rule = false;
 				switch(*s) {
-				case '?': skip_rule = true; // fall-through
+				default:
+					if(!system_call) break;
+					// fall-through
+				case '?':
+					skip_rule = true;
+					// fall-through
 				case '!':
-					if(get_var(cs, n, r, NULL)) skip_rule = !skip_rule;
+					if(system_call) {
+						if(system(cs) == 0) skip_rule = !skip_rule;
+					} else {
+						if(get_var(cs, n, r, NULL)) skip_rule = !skip_rule;
+					}
 					xfree(cs);
 					if(skip_rule) continue;
-					s++;
+					if((*s == '?') || (*s == '!') )s++;
 					for(cs = s; (*s == '_') || (*s == '-') || isalnum(*s); s++);
 					m = s - cs;
 					cs = duplicate(cs, m);
@@ -606,7 +621,7 @@ static int execute(int argn, char **argv, size_t n_rules, struct rule const *rul
 }
 
 static void version(FILE *out) {
-	fputs("m 2.3.0\n", out);
+	fputs("m 2.4.0\n", out);
 }
 
 static void usage(FILE *out) {
