@@ -1,27 +1,27 @@
-/*
-MIT License
-
-Copyright (c) 2024 Tristan Styles
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-*/
-
+#include <stdio.h>
+static void license(void) {
+	puts("MIT License");
+	puts("");
+	puts("Copyright (c) 2024 Tristan Styles");
+	puts("");
+	puts("Permission is hereby granted, free of charge, to any person obtaining a copy");
+	puts("of this software and associated documentation files (the \"Software\"), to deal");
+	puts("in the Software without restriction, including without limitation the rights");
+	puts("to use, copy, modify, merge, publish, distribute, sublicense, and/or sell");
+	puts("copies of the Software, and to permit persons to whom the Software is");
+	puts("furnished to do so, subject to the following conditions:");
+	puts("");
+	puts("The above copyright notice and this permission notice shall be included in all");
+	puts("copies or substantial portions of the Software.");
+	puts("");
+	puts("THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR");
+	puts("IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,");
+	puts("FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE");
+	puts("AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER");
+	puts("LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,");
+	puts("OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE");
+	puts("SOFTWARE.");
+}
 //
 // Inspired by https://github.com/michaelfm1211/ec
 //
@@ -46,10 +46,108 @@ SOFTWARE.
 // :+      -fno-unwind-tables -fno-asynchronous-unwind-tables
 // :+      -Wl,--gc-sections -s
 //
+static void readme(void) {
+	puts("# m");
+	puts("");
+	puts("a mini make");
+	puts("");
+	puts("Inspired by https://github.com/michaelfm1211/ec");
+	puts("");
+	puts("Uses a comment block in the source file to specify how to compile it.");
+	puts("");
+	puts("(See the **m** source file for an example of usage.)");
+	puts("");
+	puts("The comment type is determined from the file extension (see the function `get_comment` for the list of recognised extensions - edit to add more!), or may be determined by command line options.");
+	puts("");
+	puts("## Rule Format");
+	puts("");
+	puts("Specifically, **m** first scans for a starting line comment, then parses a block of line comments, and stops parsing at a non-comment. For each comment it looks for the following character sequences (after skipping any space/tab characters):");
+	puts("");
+	puts("`::` Introduces a new rule. There follows an optional rule condition, and then the rule name. The rule name - which is a sequence of alphanumeric, as well as the `_` and `-`, characters - follows. This is followed by an optional dependency list. The remainder of the line is the command to be executed.");
+	puts("");
+	puts("`:+` Appends the remainder of the line to the current rule command.");
+	puts("");
+	puts("`:&` Adds another command to be executed by the rule.");
+	puts("");
+	puts("A rule condition is either a name or a shell command followed by either `?` or `!`:");
+	puts("");
+	puts("`?` indicates that the rule is enabled if there is an existing rule or environment variable of the given name, or the execution of the shell command is succesful.");
+	puts("");
+	puts("`!` indicates that the rule is enabled if there is no existing rule or environment variable of the given name, or the execution of the shell command is unsuccesful.");
+	puts("");
+	puts("A shell command is a character sequence enclosed by the `(` and `)` characters.");
+	puts("");
+	puts("A dependency list consists of one or more of: a colon (`:`) and a rule name. Dependency rules are executed first.");
+	puts("");
+	puts("## Variable Expansion");
+	puts("");
+	puts("Variables are indicated by the `$` character; unlike make, they are not enclosed in parenthesis.");
+	puts("");
+	puts("### expansion modifiers");
+	puts("");
+	puts("`\"` causes the expansion to be enclosed in quotes.");
+	puts("");
+	puts("`+` indicates an alternate form of expansion is to be made.");
+	puts("");
+	puts("### expansion types");
+	puts("");
+	puts("#### specials");
+	puts("");
+	puts("`$:` expands to the name of the rule - the alternate form appends `.exe` on Windows.");
+	puts("");
+	puts("`$!` expands to the full file name as passed on the command line - the alternate form replaces the file suffix with `.exe` on Windows.");
+	puts("");
+	puts("`$/` expands to the directory path part of the file.");
+	puts("");
+	puts("`$^` expands to the name of the file - the alternate form appends `.exe` on Windows.");
+	puts("");
+	puts("`$.` expands to the extension part of the file - the alternate form changes to `.exe` on Windows.");
+	puts("");
+	puts("`$$` results in a single `$`.");
+	puts("");
+	puts("The alternate forms can be configured via the following rule/environment variables:");
+	puts("");
+	puts("`M_ALT_RULE` for `$:`");
+	puts("");
+	puts("`M_ALT_FILE` for `$!`");
+	puts("");
+	puts("`M_ALT_PATH` for `$/`");
+	puts("");
+	puts("`M_ALT_NAME` for `$^`");
+	puts("");
+	puts("`M_ALT_EXT` for `$.`");
+	puts("");
+	puts("Alternate expansion is recursive.");
+	puts("");
+	puts("#### arguments");
+	puts("");
+	puts("A numeric variable name specifies the position index of an argument passed on the command line following the rule name, starting from 0.");
+	puts("");
+	puts("`$*` expands all arguments, separating them with spaces. If the quote modifier is given, the arguments are individually quoted.");
+	puts("");
+	puts("Expansion is recursive.");
+	puts("");
+	puts("#### environment");
+	puts("");
+	puts("Starting with `_` or an alphabetic character, and continuing with `-`, `_` and alphanumeric characters.");
+	puts("");
+	puts("**m** attempts to obtain the value of the corresponding environment variable; if it fails, it is silently omitted, except in the case of `$CC`, `$DBG`, and `$RM` where it provides a system related default.");
+	puts("");
+	puts("Expansion is recursive.");
+	puts("");
+	puts("#### rules");
+	puts("");
+	puts("Rules can also be used as variable, however, when a rule has multiple commands only the *first* command is expanded.");
+	puts("");
+	puts("Rules take precedence over environment variables with the same name.");
+	puts("");
+	puts("The special rule `-` matches any rule name passed on the command line; it should therefore be placed _after_ all other rules that can specified on the command line.");
+	puts("");
+	puts("Expansion is recursive.");
+}
 
 #include <stddef.h>
 #include <stdlib.h>
-#include <stdio.h>
 #include <stdarg.h>
 #include <stdbool.h>
 #include <string.h>
@@ -301,7 +399,7 @@ static size_t read_rules(char const *file, FILE *in, struct comment const *com, 
 					}
 					xfree(cs);
 					if(skip_rule) continue;
-					if((*s == '?') || (*s == '!') )s++;
+					if((*s == '?') || (*s == '!')) s++;
 					for(cs = s; (*s == '_') || (*s == '-') || isalnum(*s); s++);
 					m = s - cs;
 					cs = duplicate(cs, m);
@@ -320,7 +418,7 @@ static size_t read_rules(char const *file, FILE *in, struct comment const *com, 
 					p->depends = duplicate(cs, m);
 				}
 				if(*s) s++;
-	append_command:
+		append_command:
 				while(isspace(*s)) s++;
 				p->command = xrealloc(p->command, sizeof(*(p->command)), p->n_commands + 1);
 				c          = &p->command[p->n_commands++];
@@ -621,7 +719,7 @@ static int execute(int argn, char **argv, size_t n_rules, struct rule const *rul
 }
 
 static void version(FILE *out) {
-	fputs("m 2.4.0\n", out);
+	fputs("m 2.4.1\n", out);
 }
 
 static void usage(FILE *out) {
@@ -629,16 +727,18 @@ static void usage(FILE *out) {
 	fprintf(out, "OPTION:\n");
 	fprintf(out, "\t-h, --help         display help\n");
 	fprintf(out, "\t-v, --version      display version\n");
+	fprintf(out, "\t    --license      display license\n");
+	fprintf(out, "\t    --readme       display readme\n");
 	fprintf(out, "\t-r, --rules        display available rules\n");
 	fprintf(out, "\t-c, --commands     display commands executed by rules\n");
 	fprintf(out, "\t-q, --quiet        do not display commands as they are executed\n");
+	fprintf(out, "\t-t, --type         define rule sigils according to argument:\n");
+	fprintf(out, "\t                   TYPE          - one of: .c .asm .sh\n");
 	fprintf(out, "\t-s, --sigils       define rule sigils, has the arguments:\n");
 	fprintf(out, "\t                   COMMENT       - the character sequence of an inline comment\n");
 	fprintf(out, "\t                   RULE          - the character sequence indicating a new rule\n");
 	fprintf(out, "\t                   CONTINUATION  - the character sequence indicating the continuation of rule command\n");
 	fprintf(out, "\t                   AGGREGATION   - the character sequence indicating the start of a new rule command\n");
-	fprintf(out, "\t-t, --type         define rule sigils according to argument:\n");
-	fprintf(out, "\t                   TYPE          - one of: .c .asm .sh\n");
 	fprintf(out, "\n");
 	fprintf(out, "if RULE is the single character '-', the first rule is invoked\n");
 	return;
@@ -659,22 +759,44 @@ int main(int argc, char **argv) {
 	bool list_rules = false;
 	bool list_commands = false;
 	struct comment const *com = NULL;
+	bool no_fail = false;
 
 	int argi = 1;
 	for(; (argi < argc) && (argv[argi][0] == '-'); argi++) {
 		if(is_one_of(argv[argi], "-h", "--help")) {
+			no_fail = true;
 			version(stdout);
 			usage(stdout);
-			exit();
 		} else if(is_one_of(argv[argi], "-v", "--version")) {
+			no_fail = true;
 			version(stdout);
-			exit();
+		} else if(is_one_of(argv[argi], "--license")) {
+			no_fail = true;
+			license();
+		} else if(is_one_of(argv[argi], "--readme")) {
+			no_fail = true;
+			readme();
 		} else if(is_one_of(argv[argi], "-r", "--rules")) {
+			no_fail = true;
 			list_rules = true;
 			list_commands = false;
 		} else if(is_one_of(argv[argi], "-c", "--commands")) {
+			no_fail = true;
 			list_rules = list_commands = true;
+		} else if(is_one_of(argv[argi], "-t", "--type")) {
+			no_fail = false;
+			if((argc - argi) > 1) {
+				com = get_comment(argv[++argi]);
+				if(!com) {
+					goto print_usage_and_fail;
+				}
+			} else {
+				goto print_usage_and_fail;
+			}
+		} else if(is_one_of(argv[argi], "-q", "--quiet")) {
+			quiet = true;
 		} else if(is_one_of(argv[argi], "-s", "--sigils")) {
+			no_fail = false;
 			static struct comment ucom;
 			if((argc - argi) > 4) {
 				ucom.comment.cs      = argv[++argi];
@@ -689,22 +811,15 @@ int main(int argc, char **argv) {
 			} else {
 				goto print_usage_and_fail;
 			}
-		} else if(is_one_of(argv[argi], "-t", "--type")) {
-			if((argc - argi) > 1) {
-				com = get_comment(argv[++argi]);
-				if(!com) {
-					goto print_usage_and_fail;
-				}
-			} else {
-				goto print_usage_and_fail;
-			}
-		} else if(is_one_of(argv[argi], "-q", "--quiet")) {
-			quiet = true;
 		} else {
+			no_fail = false;
 			goto print_usage_and_fail;
 		}
 	}
 	if(argi >= argc) {
+		if(no_fail) {
+			return EXIT_SUCCESS;
+		}
 print_usage_and_fail:
 		version(stderr);
 		usage(stderr);
