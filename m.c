@@ -270,40 +270,58 @@ struct comment {
 	struct string aggregation;
 };
 
+#define COM(COM__cs)  { \
+	.n  = sizeof(COM__cs)-1, \
+	.cs = (COM__cs) \
+}
+static struct comment const c_style_comments = (struct comment){
+	COM("//"), COM("::"), COM(":+"), COM(":&")
+};
+static struct comment const asm_style_comments = (struct comment){
+	COM(";" ), COM("::"), COM(":+"), COM(":&")
+};
+static struct comment const shell_style_comments = (struct comment){
+	COM("#" ), COM("::"), COM(":+"), COM(":&")
+};
+#undef COM
+
+static struct extension {
+	char const           *ext;
+	struct comment const *com;
+}	const extcom[] = {
+	{ ".c"   ,     &c_style_comments },
+	{ ".cc"  ,     &c_style_comments },
+	{ ".c++" ,     &c_style_comments },
+	{ ".cpp" ,     &c_style_comments },
+	{ ".cxx" ,     &c_style_comments },
+	{ ".d"   ,     &c_style_comments },
+	{ ".java",     &c_style_comments },
+	{ ".js"  ,     &c_style_comments },
+	{ ".cs"  ,     &c_style_comments },
+	{ ".fs"  ,     &c_style_comments },
+	{ ".rs"  ,     &c_style_comments },
+	{ ".go"  ,     &c_style_comments },
+	{ ".asm" ,   &asm_style_comments },
+	{ ".l"   ,   &asm_style_comments },
+	{ ".cl"  ,   &asm_style_comments },
+	{ ".ls"  ,   &asm_style_comments },
+	{ ".lisp",   &asm_style_comments },
+	{ ".scm" ,   &asm_style_comments },
+	{ ".reb" ,   &asm_style_comments },
+	{ ".red" ,   &asm_style_comments },
+	{ ".sh"  , &shell_style_comments },
+	{ ".rb"  , &shell_style_comments },
+	{ ".pl"  , &shell_style_comments },
+	{ ".py"  , &shell_style_comments },
+	{ ""     , &shell_style_comments },
+	{ NULL   ,  NULL                 }
+};
+
 static struct comment const *get_comment(char const *ext) {
-#	define COM(COM__cs)  { \
-		.n  = sizeof(COM__cs)-1, \
-		.cs = (COM__cs) \
-	}
-	if(is_one_of(ext,
-		".c", ".cc", ".c++", ".cpp", ".cxx", ".h", ".h++", ".hpp", ".hxx",
-		".d", ".java", ".js", ".cs", ".fs", ".rs", ".go"
-	)) {
-		static struct comment const com = (struct comment){
-			COM("//"), COM("::"), COM(":+"), COM(":&")
-		};
-		return &com;
-	}
-	if(is_one_of(ext,
-		".asm",
-		".l", ".cl", ".ls", ".lisp",
-		".scm", ".reb", ".red"
-	)) {
-		static struct comment const com = (struct comment){
-			COM(";"), COM("::"), COM(":+"), COM(":&")
-		};
-		return &com;
-	}
-	if(is_one_of(ext,
-		"", ".sh", ".rb", ".pl", ".py"
-	)) {
-		static struct comment const com = (struct comment){
-			COM("#"), COM("::"), COM(":+"), COM(":&")
-		};
-		return &com;
-	}
-	return NULL;
-#	undef COM
+	struct extension const *p = extcom;
+	for(; p->ext && !streq(ext, p->ext); p++)
+		;
+	return p->com;
 }
 
 static int is_comment(struct comment const *com, char const *ln) {
@@ -719,7 +737,7 @@ static int execute(int argn, char **argv, size_t n_rules, struct rule const *rul
 }
 
 static void version(FILE *out) {
-	fputs("m 2.4.1\n", out);
+	fputs("m 2.5.0\n", out);
 }
 
 static void usage(FILE *out) {
@@ -828,6 +846,33 @@ print_usage_and_fail:
 
 	char const *file = argv[argi++];
 
+	FILE *in = fopen(file, "r");
+	if(!in) {
+		struct extension const *p = extcom;
+		size_t           const  o = strlen(file);
+		size_t                  z = 0;
+		for(; p->ext; p++) {
+			if(strlen(p->ext) > z) {
+				z = strlen(p->ext);
+			}
+		}
+		char *file_ext = xmalloc(sizeof(*file_ext), o + z + 1);
+		strcpy(file_ext, file);
+		for(p = extcom; p->ext; p++) {
+			strcpy(file_ext + o, p->ext);
+			in = fopen(file_ext, "r");
+			if(in) {
+				file = file_ext;
+				com = p->com;
+				break;
+			}
+		}
+	}
+	if(!in) {
+		perror(file);
+		fail();
+	}
+
 	if(!com) {
 		char const *ext = get_file_extension(file);
 		com = get_comment(ext);
@@ -835,12 +880,6 @@ print_usage_and_fail:
 			fprintf(stderr, "%s: unknown file type", file);
 			fail();
 		}
-	}
-
-	FILE *in = fopen(file, "r");
-	if(!in) {
-		perror(file);
-		fail();
 	}
 
 	struct rule *rules   = NULL;
