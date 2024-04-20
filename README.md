@@ -10,6 +10,8 @@ Uses a comment block in the source file to specify how to compile it.
 
 The comment type is determined from the file extension (see the function `get_comment` for the list of recognised extensions - edit to add more!), or may be determined by command line options.
 
+If no extension is given **m** attempts to discover it by opening the file with known extensions; the order of opening can be overridden by the `M_EXT_ORDER` environment variable.
+
 ## Rule Format
 
 Specifically, **m** first scans for a starting line comment, then parses a block of line comments, and stops parsing at a non-comment. For each comment it looks for the following character sequences (after skipping any space/tab characters):

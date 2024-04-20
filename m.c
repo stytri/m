@@ -32,7 +32,7 @@ static void license(void) {
 // ::debug
 // :+  $CC $CFLAGS
 // :+      -Og -g -o $+: $"!
-// :&  $DBG $"* $+:
+// :&  $DBG -tui --args $+: $"*
 // :&  $RM $+:
 //
 // ::CFLAGS
@@ -58,6 +58,8 @@ static void readme(void) {
 	puts("(See the **m** source file for an example of usage.)");
 	puts("");
 	puts("The comment type is determined from the file extension (see the function `get_comment` for the list of recognised extensions - edit to add more!), or may be determined by command line options.");
+	puts("");
+	puts("If no extension is given **m** attempts to discover it by opening the file with known extensions; the order of opening can be overridden by the `M_EXT_ORDER` environment variable.");
 	puts("");
 	puts("## Rule Format");
 	puts("");
@@ -737,7 +739,7 @@ static int execute(int argn, char **argv, size_t n_rules, struct rule const *rul
 }
 
 static void version(FILE *out) {
-	fputs("m 2.5.0\n", out);
+	fputs("m 2.5.1\n", out);
 }
 
 static void usage(FILE *out) {
@@ -762,18 +764,7 @@ static void usage(FILE *out) {
 	return;
 }
 
-#ifndef NDEBUG
-int main(int argc__actual, char **argv__actual) {
-	(void)argc__actual;
-	char *argv[] = {
-		argv__actual[0],
-		"m.c",
-		NULL,
-	};
-	int argc = (sizeof(argv) / sizeof(argv[1])) - 1;
-#else
 int main(int argc, char **argv) {
-#endif
 	bool list_rules = false;
 	bool list_commands = false;
 	struct comment const *com = NULL;
@@ -850,16 +841,35 @@ print_usage_and_fail:
 	if(!in) {
 		struct extension const *p = extcom;
 		size_t           const  o = strlen(file);
+		size_t                  w = 0;
 		size_t                  z = 0;
 		for(; p->ext; p++) {
-			if(strlen(p->ext) > z) {
-				z = strlen(p->ext);
+			size_t n = strlen(p->ext);
+			if(n > z) {
+				z = n;
+			}
+			w += n;
+		}
+		char *ext_order = getenv("M_EXT_ORDER");
+		if(!ext_order) {
+			ext_order = xmalloc(sizeof(*ext_order), w + 1);
+			for(w = 0, p = extcom; p->ext; p++) {
+				size_t n = strlen(p->ext);
+				strcpy(ext_order + w, p->ext);
+				w += n;
 			}
 		}
 		char *file_ext = xmalloc(sizeof(*file_ext), o + z + 1);
 		strcpy(file_ext, file);
-		for(p = extcom; p->ext; p++) {
-			strcpy(file_ext + o, p->ext);
+		for(char const *ext, *ct = ext_order; (ext = ct); ) {
+			ct = strchr(ext + 1, '.');
+			if(ct) {
+				size_t n = ct - ext;
+				strncpy(file_ext + o, ext, n);
+				file_ext[o + n] = '\0';
+			} else {
+				strcpy(file_ext + o, ext);
+			}
 			in = fopen(file_ext, "r");
 			if(in) {
 				file = file_ext;
