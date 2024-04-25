@@ -139,7 +139,7 @@ static void readme(void) {
 	puts("");
 	puts("#### rules");
 	puts("");
-	puts("Rules can also be used as variable, however, when a rule has multiple commands only the *first* command is expanded.");
+	puts("Rules can also be used as variable; when a rule has multiple commands, each command is expanded separately, resulting in multiple command executions.");
 	puts("");
 	puts("Rules take precedence over environment variables with the same name.");
 	puts("");
@@ -517,24 +517,65 @@ static char const *get_file_name(char const *file, size_t *len) {
 #	define M_ALT_EXT   "$."
 #endif
 
-static char const *expand(char const *ct, int argn, char **argv, size_t n_rules, struct rule const *rules, char const *rule, char const *file) {
-	size_t rule_len = strlen(rule);
-	size_t file_len = strlen(file);
-	size_t m        = 0;
-	char  *s        = NULL;
-	for(char const *cs; (cs = strchr(ct, '$')); ) {
-		size_t      u = cs - ct, w;
-		char const *cv;
-		if(u > 0) {
-			s   = concatenate(s, m, ct, u);
-			m  += u;
-			ct += u;
+struct cslist {
+	char          const *cs;
+	struct cslist const *next;
+};
+struct env {
+	char                *s;
+	int                  argn;
+	char               **argv;
+	size_t               n_rules;
+	struct rule   const *rules;
+	size_t               rule_len;
+	char          const *rule;
+	size_t               file_len;
+	char          const *file;
+	int                (*action)(char const *);
+};
+
+static int expander(struct env *e, size_t n, char const *cs, struct cslist const *next, bool is_quoted) {
+	if(is_quoted) {
+		e->s = concatenate(e->s, n, "\"", 1);
+		n++;
+	}
+	for(int ec = EXIT_SUCCESS;;) {
+		if(!cs || !*cs) {
+			if(is_quoted) {
+				is_quoted = false;
+				e->s = concatenate(e->s, n, "\"", 1);
+				n++;
+			}
+			if(next) {
+				cs = next->cs;
+				next = next->next;
+				continue;
+			}
+			goto done;
 		}
-		ct++;
-		bool const quoted = *ct == '"';
-		ct += quoted;
-		bool const alt = *ct == '+';
-		ct += alt;
+		size_t u;
+		char const *ct = strchr(cs, '$');
+		if(!ct) {
+			if(*cs) {
+				u    = strlen(cs);
+				e->s = concatenate(e->s, n, cs, u);
+				n   += u;
+				cs  += u;
+				continue;
+			}
+			goto done;
+		}
+		u = ct - cs;
+		if(u > 0) {
+			e->s = concatenate(e->s, n, cs, u);
+			n   += u;
+			cs  += u;
+		}
+		cs++;
+		bool const quoted = *cs == '"';
+		cs += quoted;
+		bool const alt = *cs == '+';
+		cs += alt;
 #		define CONCATENATE(S,M,T,N) do { \
 			if(quoted) { \
 				S  = concatenate(S, M, "\"", 1); \
@@ -547,152 +588,169 @@ static char const *expand(char const *ct, int argn, char **argv, size_t n_rules,
 				M += 1; \
 			} \
 		} while(0)
-#		define ALTERNATE_CONCATENATE(S,M,T) do { \
-			if(quoted) { \
-				S  = concatenate(S, M, "\"", 1); \
-				M += 1; \
-			} \
-			char const *ALTERNATE_CONCATENATE__V = get_var(#T, n_rules, rules, T); \
-			char const *ALTERNATE_CONCATENATE__T = expand(ALTERNATE_CONCATENATE__V, argn, argv, n_rules, rules, rule, file);\
-			size_t      ALTERNATE_CONCATENATE__N = strlen(ALTERNATE_CONCATENATE__T); \
-			S  = concatenate(S, M, ALTERNATE_CONCATENATE__T, ALTERNATE_CONCATENATE__N); \
-			M += ALTERNATE_CONCATENATE__N; \
-			xfree(ALTERNATE_CONCATENATE__T);\
-			if(quoted) { \
-				S  = concatenate(S, M, "\"", 1); \
-				M += 1; \
-			} \
+#		define ALTERNATE_CONCATENATE(S,N,T) do { \
+			struct cslist ALTERNATE_CONCATENATE__S = { .cs = cs, .next = next }; \
+			char const *ALTERNATE_CONCATENATE__T = get_var(#T, e->n_rules, e->rules, T); \
+			ec = expander(e, N, ALTERNATE_CONCATENATE__T, &ALTERNATE_CONCATENATE__S, quoted); \
 		} while(0)
-#		define RECURSIVE_CONCATENATE(S,M,T,N) do { \
-			if(quoted) { \
-				S  = concatenate(S, M, "\"", 1); \
-				M += 1; \
-			} \
-			char const *RECURSIVE_CONCATENATE__T = expand(T, argn, argv, n_rules, rules, rule, file);\
-			size_t      RECURSIVE_CONCATENATE__N = strlen(RECURSIVE_CONCATENATE__T); \
-			S  = concatenate(S, M, RECURSIVE_CONCATENATE__T, RECURSIVE_CONCATENATE__N); \
-			M += RECURSIVE_CONCATENATE__N; \
-			xfree(RECURSIVE_CONCATENATE__T);\
-			if(quoted) { \
-				S  = concatenate(S, M, "\"", 1); \
-				M += 1; \
-			} \
+#		define RECURSIVE_CONCATENATE(S,N,T) do { \
+			struct cslist RECURSIVE_CONCATENATE__S = { .cs = cs, .next = next }; \
+			ec = expander(e, N, T, &RECURSIVE_CONCATENATE__S, quoted); \
 		} while(0)
-		switch(*ct) {
+		int c = *cs;
+		switch(c) {
 		case ':':
-			ct++;
+			cs++;
 			if(alt) {
-				ALTERNATE_CONCATENATE(s, m, M_ALT_RULE);
-				continue;
+				ALTERNATE_CONCATENATE(e->s, n, M_ALT_RULE);
+				return ec;
 			}
-			CONCATENATE(s, m, rule, rule_len);
+			CONCATENATE(e->s, n, e->rule, e->rule_len);
 			continue;
 		case '!':
-			ct++;
+			cs++;
 			if(alt) {
-				ALTERNATE_CONCATENATE(s, m, M_ALT_FILE);
-				continue;
+				ALTERNATE_CONCATENATE(e->s, n, M_ALT_FILE);
+				return ec;
 			}
-			CONCATENATE(s, m, file, file_len);
+			CONCATENATE(e->s, n, e->file, e->file_len);
 			continue;
 		case '/':
-			ct++;
+			cs++;
 			if(alt) {
-				ALTERNATE_CONCATENATE(s, m, M_ALT_PATH);
-				continue;
+				ALTERNATE_CONCATENATE(e->s, n, M_ALT_PATH);
+				return ec;
 			}
-			cv = get_file_path(file, &w);
-			CONCATENATE(s, m, cv, w);
+			ct = get_file_path(e->file, &u);
+			CONCATENATE(e->s, n, ct, u);
 			continue;
 		case '^':
-			ct++;
+			cs++;
 			if(alt) {
-				ALTERNATE_CONCATENATE(s, m, M_ALT_NAME);
-				continue;
+				ALTERNATE_CONCATENATE(e->s, n, M_ALT_NAME);
+				return ec;
 			}
-			cv = get_file_name(file, &w);
-			CONCATENATE(s, m, cv, w);
+			ct = get_file_name(e->file, &u);
+			CONCATENATE(e->s, n, ct, u);
 			continue;
 		case '.':
-			ct++;
+			cs++;
 			if(alt) {
-				ALTERNATE_CONCATENATE(s, m, M_ALT_EXT);
-				continue;
+				ALTERNATE_CONCATENATE(e->s, n, M_ALT_EXT);
+				return ec;
 			}
-			cv = get_file_extension(file, &w);
-			CONCATENATE(s, m, cv, w);
+			ct = get_file_extension(e->file, &u);
+			CONCATENATE(e->s, n, ct, u);
 			continue;
 		case '*':
-			ct++;
-			for(int argi = 0; argi < argn; argi++) {
+			cs++;
+			for(int argi = 0; argi < e->argn; argi++) {
 				if(argi > 0) {
-					s  = concatenate(s, m, " ", 1);
-					m += 1;
+					e->s = concatenate(e->s, n, " ", 1);
+					n += 1;
 				}
-				cv = argv[argi];
-				w  = strlen(cv);
-				CONCATENATE(s, m, cv, w);
+				ct = e->argv[argi];
+				u  = strlen(ct);
+				CONCATENATE(e->s, n, ct, u);
 			}
 			continue;
 		case '$':
-			ct++;
-			CONCATENATE(s, m, "$", 1);
+			cs++;
+			CONCATENATE(e->s, n, "$", 1);
 			continue;
 		}
-		if(isdigit(*ct)) {
+		if(isdigit(c)) {
 			int argi = 0;
 			do {
-				argi = (argi * 10) + (*ct - '0');
-				ct++;
-			} while(isdigit(*ct))
+				argi = (argi * 10) + (c - '0');
+				cs++;
+				c = *cs;
+			} while(isdigit(c))
 				;
-			if(argi < argn) {
-				cv = argv[argi];
-				w  = strlen(cv);
-				RECURSIVE_CONCATENATE(s, m, cv, w);
+			if(argi < e->argn) {
+				ct = e->argv[argi];
+				RECURSIVE_CONCATENATE(e->s, n, ct);
+				return ec;
 			}
-		} else if((*ct == '_') || isalpha(*ct)) {
-			cs = ct, u = 0;
+			continue;
+		}
+		if((c == '_') || isalpha(c)) {
+			ct = cs;
 			do {
-				ct++, u++;
-			} while((*ct == '_') || (*ct == '-') || isalnum(*ct))
+				cs++;
+				c = *cs;
+			} while((c == '_') || (c == '-') || isalnum(c))
 				;
-			cs = duplicate(cs, u);
-			cv = get_var(cs, n_rules, rules, NULL);
+			u = cs - ct;
+			ct = duplicate(ct, u);
+			for(size_t i = 0; i < e->n_rules; i++) {
+				if(streq(ct, e->rules[i].name.cs)) {
+					xfree(ct);
+					for(size_t j = 0; j < e->rules[i].n_commands; j++) {
+						ct = e->rules[i].command[j].cs;
+						RECURSIVE_CONCATENATE(e->s, n, ct);
+						if(ec != EXIT_SUCCESS) break;
+					}
+					return ec;
+				}
+			}
+			char const *cv = getenv(ct);
 			if(cv) {
-				w = strlen(cv);
-				RECURSIVE_CONCATENATE(s, m, cv, w);
-			} else if(streq(cs, "CC")) {
+				xfree(ct);
+				RECURSIVE_CONCATENATE(e->s, n, cv);
+				return ec;
+			}
+			if(streq(ct, "CC")) {
 #if defined __GNUC__
-				CONCATENATE(s, m, "gcc", 3);
+				CONCATENATE(e->s, n, "gcc", 3);
 #elif defined __clang__
-				CONCATENATE(s, m, "clang", 5);
+				CONCATENATE(e->s, n, "clang", 5);
 #else
-				CONCATENATE(s, m, "cc", 2);
+				CONCATENATE(e->s, n, "cc", 2);
 #endif
-			} else if(streq(cs, "DBG")) {
+			} else if(streq(ct, "DBG")) {
 #if defined __GNUC__
-				CONCATENATE(s, m, "gdb", 3);
+				CONCATENATE(e->s, n, "gdb", 3);
 #elif defined __clang__
-				CONCATENATE(s, m, "lldb", 4);
+				CONCATENATE(e->s, n, "lldb", 4);
 #endif
-			} else if(streq(cs, "RM")) {
+			} else if(streq(ct, "RM")) {
 #if defined _WIN32
-				CONCATENATE(s, m, "del", 3);
+				CONCATENATE(e->s, n, "del", 3);
 #else
-				CONCATENATE(s, m, "rm", 2);
+				CONCATENATE(e->s, n, "rm", 2);
 #endif
 			}
-			xfree(cs);
+			xfree(ct);
 		}
 #		undef RECURSIVE_CONCATENATE
 #		undef ALTERNATE_CONCATENATE
 #		undef CONCATENATE
+#		undef cs
 	}
-	if(*ct) {
-		s = concatenate(s, m, ct, strlen(ct));
+done:
+	if(!quiet) {
+		puts(e->s);
 	}
-	return s;
+	return e->action(e->s);
+}
+
+static int expand(int (*action)(char const *), char const *cs, int argn, char **argv, size_t n_rules, struct rule const *rules, char const *rule, char const *file) {
+	struct env e = {
+		.s        = NULL,
+		.argn     = argn,
+		.argv     = argv,
+		.n_rules  = n_rules,
+		.rules    = rules,
+		.rule_len = strlen(rule),
+		.rule     = rule,
+		.file_len = strlen(file),
+		.file     = file,
+		.action   = action,
+	};
+	int ec = expander(&e, 0, cs, NULL, false);
+	xfree(e.s);
+	return ec;
 }
 
 static int execute(int argn, char **argv, size_t n_rules, struct rule const *rules, char const *rule, char const *file) {
@@ -717,17 +775,13 @@ static int execute(int argn, char **argv, size_t n_rules, struct rule const *rul
 				(ec == EXIT_SUCCESS) && (j < rules[i].n_commands);
 				j++
 			) {
-				char const *cs = expand(
+				ec = expand(
+					system,
 					rules[i].command[j].cs,
 					argn, argv,
 					n_rules, rules, rule,
 					file
 				);
-				if(!quiet) {
-					puts(cs);
-				}
-				ec = system(cs);
-				xfree(cs);
 			}
 			break;
 		}
@@ -738,8 +792,14 @@ static int execute(int argn, char **argv, size_t n_rules, struct rule const *rul
 	return ec;
 }
 
+static int print(char const *cs) {
+	putchar('\t');
+	puts(cs);
+	return EXIT_SUCCESS;
+}
+
 static void version(FILE *out) {
-	fputs("m 2.5.1\n", out);
+	fputs("m 3.0.0\n", out);
 }
 
 static void usage(FILE *out) {
@@ -789,9 +849,11 @@ int main(int argc, char **argv) {
 			no_fail = true;
 			list_rules = true;
 			list_commands = false;
+			quiet = true;
 		} else if(is_one_of(argv[argi], "-c", "--commands")) {
 			no_fail = true;
 			list_rules = list_commands = true;
+			quiet = true;
 		} else if(is_one_of(argv[argi], "-t", "--type")) {
 			no_fail = false;
 			if((argc - argi) > 1) {
@@ -914,14 +976,13 @@ print_usage_and_fail:
 					fputs(rules[i].name.cs, stdout), puts(":");
 				}
 				for(size_t j = 0; j < rules[i].n_commands; j++) {
-					char const *cs = expand(
+					(void)expand(
+						print,
 						rules[i].command[j].cs,
 						argc - argi, &argv[argi],
 						n_rules, rules, rules[i].name.cs,
 						file
 					);
-					putchar('\t'), puts(cs);
-					xfree(cs);
 				}
 			} else if(rules[i].name.n > 0) {
 				puts(rules[i].name.cs);

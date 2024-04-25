@@ -90,7 +90,7 @@ Expansion is recursive.
 
 #### rules
 
-Rules can also be used as variable, however, when a rule has multiple commands only the *first* command is expanded.
+Rules can also be used as variable; when a rule has multiple commands, each command is expanded separately, resulting in multiple command executions.
 
 Rules take precedence over environment variables with the same name.
 
