@@ -768,6 +768,9 @@ static int expand(int (*action)(char const *), bool pie, char const *cs, int arg
 		.file     = file,
 		.action   = action,
 	};
+	for(size_t i = 0; i < n_rules; i++) {
+		rules[i].first = NULL;
+	}
 	int ec = expander(&e, 0, cs, NULL, false);
 	xfree(e.s);
 	return ec;
@@ -804,7 +807,6 @@ static int execute(bool pie, int argn, char **argv, size_t n_rules, struct rule 
 					file
 				);
 			}
-			rules[i].first = NULL;
 			break;
 		}
 	}
@@ -1012,7 +1014,6 @@ print_usage_and_fail:
 						file
 					);
 				}
-				rules[i].first = NULL;
 			} else if(rules[i].name.n > 0) {
 				puts(rules[i].name.cs);
 			}
