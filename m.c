@@ -46,6 +46,17 @@ static void license(void) {
 // :+      -fno-unwind-tables -fno-asynchronous-unwind-tables
 // :+      -Wl,--gc-sections -s
 //
+// ::test
+// :+  echo $CC $CFLAGS
+// :+      -Og -g -o $FILES $FILES.c
+// :&  echo $DBG -tui --args $FILES $"*
+// :&  echo $RM $FILES
+//
+// ::FILES
+// :+  file1
+// :&  file2
+// :&  file3
+//
 static void readme(void) {
 	puts("# m");
 	puts("");
@@ -347,6 +358,7 @@ struct rule {
 	char const    *depends;
 	size_t         n_commands;
 	struct string *command;
+	struct string *first;
 };
 
 static char const *get_var(char const *cs, size_t n_rules, struct rule const *rules, char const *cd) {
@@ -429,7 +441,7 @@ static size_t read_rules(char const *file, FILE *in, struct comment const *com, 
 				p->name.n     = m;
 				p->name.cs    = cs;
 				p->depends    = NULL;
-				p->command    = NULL;
+				p->command    = p->first = NULL;
 				p->n_commands = 0;
 				if(*s == ':') {
 					s++;
@@ -523,10 +535,11 @@ struct cslist {
 };
 struct env {
 	char                *s;
+	bool                 pie;
 	int                  argn;
 	char               **argv;
 	size_t               n_rules;
-	struct rule   const *rules;
+	struct rule         *rules;
 	size_t               rule_len;
 	char          const *rule;
 	size_t               file_len;
@@ -686,10 +699,16 @@ static int expander(struct env *e, size_t n, char const *cs, struct cslist const
 			for(size_t i = 0; i < e->n_rules; i++) {
 				if(streq(ct, e->rules[i].name.cs)) {
 					xfree(ct);
-					for(size_t j = 0; j < e->rules[i].n_commands; j++) {
-						ct = e->rules[i].command[j].cs;
+					if(e->pie || !e->rules[i].first) {
+						for(size_t j = 0; j < e->rules[i].n_commands; j++) {
+							e->rules[i].first = &e->rules[i].command[j];
+							ct = e->rules[i].command[j].cs;
+							RECURSIVE_CONCATENATE(e->s, n, ct);
+							if(ec != EXIT_SUCCESS) break;
+						}
+					} else {
+						ct = e->rules[i].first->cs;
 						RECURSIVE_CONCATENATE(e->s, n, ct);
-						if(ec != EXIT_SUCCESS) break;
 					}
 					return ec;
 				}
@@ -735,9 +754,10 @@ done:
 	return e->action(e->s);
 }
 
-static int expand(int (*action)(char const *), char const *cs, int argn, char **argv, size_t n_rules, struct rule const *rules, char const *rule, char const *file) {
+static int expand(int (*action)(char const *), bool pie, char const *cs, int argn, char **argv, size_t n_rules, struct rule *rules, char const *rule, char const *file) {
 	struct env e = {
 		.s        = NULL,
+		.pie      = pie,
 		.argn     = argn,
 		.argv     = argv,
 		.n_rules  = n_rules,
@@ -753,7 +773,7 @@ static int expand(int (*action)(char const *), char const *cs, int argn, char **
 	return ec;
 }
 
-static int execute(int argn, char **argv, size_t n_rules, struct rule const *rules, char const *rule, char const *file) {
+static int execute(bool pie, int argn, char **argv, size_t n_rules, struct rule *rules, char const *rule, char const *file) {
 	int ec = EXIT_SUCCESS;
 	bool found = false;
 	for(size_t i = 0; (ec == EXIT_SUCCESS) && (i < n_rules); i++) {
@@ -765,7 +785,7 @@ static int execute(int argn, char **argv, size_t n_rules, struct rule const *rul
 					cr = strchr(cs, ':');
 					size_t m = cr ? (size_t)(cr - cs) : strlen(cs);
 					char const *ct = duplicate(cs, m);
-					ec = execute(argn, argv, n_rules, rules, ct, file);
+					ec = execute(pie, argn, argv, n_rules, rules, ct, file);
 					xfree(ct);
 					if(!cr) break;
 					if(ec) break;
@@ -777,12 +797,14 @@ static int execute(int argn, char **argv, size_t n_rules, struct rule const *rul
 			) {
 				ec = expand(
 					system,
+					pie,
 					rules[i].command[j].cs,
 					argn, argv,
 					n_rules, rules, rule,
 					file
 				);
 			}
+			rules[i].first = NULL;
 			break;
 		}
 	}
@@ -799,7 +821,7 @@ static int print(char const *cs) {
 }
 
 static void version(FILE *out) {
-	fputs("m 3.0.0\n", out);
+	fputs("m 3.1.0\n", out);
 }
 
 static void usage(FILE *out) {
@@ -812,6 +834,8 @@ static void usage(FILE *out) {
 	fprintf(out, "\t-r, --rules        display available rules\n");
 	fprintf(out, "\t-c, --commands     display commands executed by rules\n");
 	fprintf(out, "\t-q, --quiet        do not display commands as they are executed\n");
+	fprintf(out, "\t-1, --single       when expanding multi-command rules,\n");
+	fprintf(out, "\t                   only multiply expand the first instance\n");
 	fprintf(out, "\t-t, --type         define rule sigils according to argument:\n");
 	fprintf(out, "\t                   TYPE          - one of: .c .asm .sh\n");
 	fprintf(out, "\t-s, --sigils       define rule sigils, has the arguments:\n");
@@ -829,6 +853,7 @@ int main(int argc, char **argv) {
 	bool list_commands = false;
 	struct comment const *com = NULL;
 	bool no_fail = false;
+	bool pie = true;
 
 	int argi = 1;
 	for(; (argi < argc) && (argv[argi][0] == '-'); argi++) {
@@ -854,6 +879,8 @@ int main(int argc, char **argv) {
 			no_fail = true;
 			list_rules = list_commands = true;
 			quiet = true;
+		} else if(is_one_of(argv[argi], "-1", "--single")) {
+			pie = false;
 		} else if(is_one_of(argv[argi], "-t", "--type")) {
 			no_fail = false;
 			if((argc - argi) > 1) {
@@ -978,12 +1005,14 @@ print_usage_and_fail:
 				for(size_t j = 0; j < rules[i].n_commands; j++) {
 					(void)expand(
 						print,
+						pie,
 						rules[i].command[j].cs,
 						argc - argi, &argv[argi],
 						n_rules, rules, rules[i].name.cs,
 						file
 					);
 				}
+				rules[i].first = NULL;
 			} else if(rules[i].name.n > 0) {
 				puts(rules[i].name.cs);
 			}
@@ -991,7 +1020,7 @@ print_usage_and_fail:
 	} else {
 		char const *rule = (argi < argc) ? argv[argi++] : "-";
 		if(streq(rule, "-")) rule = rules[0].name.cs;
-		ec = execute(argc - argi, &argv[argi], n_rules, rules, rule, file);
+		ec = execute(pie, argc - argi, &argv[argi], n_rules, rules, rule, file);
 	}
 
 	return ec;
