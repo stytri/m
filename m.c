@@ -57,6 +57,7 @@ static void license(void) {
 // :&  file2
 // :&  file3
 //
+static void usage(FILE *out);
 static void readme(void) {
 	puts("# m");
 	puts("");
@@ -71,6 +72,12 @@ static void readme(void) {
 	puts("The comment type is determined from the file extension (see the function `get_comment` for the list of recognised extensions - edit to add more!), or may be determined by command line options.");
 	puts("");
 	puts("If no extension is given **m** attempts to discover it by opening the file with known extensions; the order of opening can be overridden by the `M_EXT_ORDER` environment variable.");
+	puts("");
+	puts("## Command Line");
+	puts("");
+	puts("```");
+	usage(stdout);
+	puts("```");
 	puts("");
 	puts("## Rule Format");
 	puts("");
