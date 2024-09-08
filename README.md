@@ -34,6 +34,14 @@ OPTION:
 	                   CONTINUATION  - the character sequence indicating the continuation of rule command
 	                   AGGREGATION   - the character sequence indicating the start of a new rule command
 
+FILE is either a single filename or, 1 or more file names book-ended with the double-character '--'
+e.g:
+	m m.c
+or:
+	m -- *.c --
+
+arguments before the first '--' and after the second '--' apply to all files
+
 if RULE is the single character '-', the first rule is invoked
 ```
 

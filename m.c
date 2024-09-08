@@ -829,8 +829,123 @@ static int print(char const *cs) {
 	return EXIT_SUCCESS;
 }
 
+static int process(char const *file, int argi, int argc, char **argv, bool list_rules, bool list_commands, struct comment const *com, bool pie) {
+	bool free_file = false;
+	FILE *in = fopen(file, "r");
+	if(!in) {
+		struct extension const *p = extcom;
+		size_t           const  o = strlen(file);
+		size_t                  w = 0;
+		size_t                  z = 0;
+		for(; p->ext; p++) {
+			size_t n = strlen(p->ext);
+			if(n > z) {
+				z = n;
+			}
+			w += n;
+		}
+		static char *ext_order = NULL;
+		if(!ext_order) {
+			ext_order = getenv("M_EXT_ORDER");
+		}
+		if(!ext_order) {
+			ext_order = xmalloc(sizeof(*ext_order), w + 1);
+			for(w = 0, p = extcom; p->ext; p++) {
+				size_t n = strlen(p->ext);
+				strcpy(ext_order + w, p->ext);
+				w += n;
+			}
+		}
+		char *file_ext = xmalloc(sizeof(*file_ext), o + z + 1);
+		strcpy(file_ext, file);
+		for(char const *ext, *ct = ext_order; (ext = ct); ) {
+			ct = strchr(ext + 1, '.');
+			if(ct) {
+				size_t n = ct - ext;
+				strncpy(file_ext + o, ext, n);
+				file_ext[o + n] = '\0';
+			} else {
+				strcpy(file_ext + o, ext);
+			}
+			in = fopen(file_ext, "r");
+			if(in) {
+				free_file = true;
+				file = file_ext;
+				com = p->com;
+				break;
+			}
+		}
+		if(!free_file) xfree(file_ext);
+	}
+	if(!in) {
+		perror(file);
+		fail();
+	}
+
+	if(!com) {
+		char const *ext = get_file_extension(file);
+		com = get_comment(ext);
+		if(!com) {
+			fprintf(stderr, "%s: unknown file type", file);
+			fail();
+		}
+	}
+
+	struct rule *rules   = NULL;
+	size_t       n_rules = read_rules(file, in, com, &rules);
+	if(!n_rules) {
+		if(errno == 0) {
+			fprintf(stderr, "%s: no rules found\n", file);
+		} else {
+			perror(file);
+		}
+		fail();
+	}
+
+	fclose(in);
+
+	int ec = EXIT_SUCCESS;
+
+	if(list_rules) {
+		for(size_t i = 0; i < n_rules; i++) {
+			if(list_commands) {
+				if(rules[i].name.n > 0) {
+					fputs(rules[i].name.cs, stdout), puts(":");
+				}
+				for(size_t j = 0; j < rules[i].n_commands; j++) {
+					(void)expand(
+						print,
+						pie,
+						rules[i].command[j].cs,
+						argc - argi, &argv[argi],
+						n_rules, rules, rules[i].name.cs,
+						file
+					);
+				}
+			} else if(rules[i].name.n > 0) {
+				puts(rules[i].name.cs);
+			}
+		}
+	} else {
+		char const *rule = (argi < argc) ? argv[argi++] : "-";
+		if(streq(rule, "-")) rule = rules[0].name.cs;
+		ec = execute(pie, argc - argi, &argv[argi], n_rules, rules, rule, file);
+	}
+
+	for(size_t i = 0; i < n_rules; i++) {
+		if(rules[i].name.n > 0) xfree(rules[i].name.cs);
+		xfree(rules[i].depends);
+		for(size_t j = 0; j < rules[i].n_commands; j++) {
+			xfree(rules[i].command[j].cs);
+		}
+	}
+	if(free_file) xfree(file);
+
+	return ec;
+}
+
 static void version(FILE *out) {
-	fputs("m 3.1.0\n", out);
+	fputs("m 3.3.0\n", out);
 }
 
 static void usage(FILE *out) {
@@ -853,9 +968,21 @@ static void usage(FILE *out) {
 	fprintf(out, "\t                   CONTINUATION  - the character sequence indicating the continuation of rule command\n");
 	fprintf(out, "\t                   AGGREGATION   - the character sequence indicating the start of a new rule command\n");
 	fprintf(out, "\n");
+	fprintf(out, "FILE is either a single filename or, 1 or more file names book-ended with the double-character '--'\n");
+	fprintf(out, "e.g:\n");
+	fprintf(out, "\tm m.c\n");
+	fprintf(out, "or:\n");
+	fprintf(out, "\tm -- *.c --\n");
+	fprintf(out, "\n");
+	fprintf(out, "arguments before the first '--' and after the second '--' apply to all files\n");
+	fprintf(out, "\n");
 	fprintf(out, "if RULE is the single character '-', the first rule is invoked\n");
 	return;
 }
+
+#ifdef __MINGW64__
+int _dowildcard = -1;
+#endif
 
 int main(int argc, char **argv) {
 	bool list_rules = false;
@@ -866,7 +993,9 @@ int main(int argc, char **argv) {
 
 	int argi = 1;
 	for(; (argi < argc) && (argv[argi][0] == '-'); argi++) {
-		if(is_one_of(argv[argi], "-h", "--help")) {
+		if(streq(argv[argi], "--")) {
+			break;
+		} else if(is_one_of(argv[argi], "-h", "--help")) {
 			no_fail = true;
 			version(stdout);
 			usage(stdout);
@@ -933,103 +1062,22 @@ print_usage_and_fail:
 		fail();
 	}
 
+	int ec;
 	char const *file = argv[argi++];
-
-	FILE *in = fopen(file, "r");
-	if(!in) {
-		struct extension const *p = extcom;
-		size_t           const  o = strlen(file);
-		size_t                  w = 0;
-		size_t                  z = 0;
-		for(; p->ext; p++) {
-			size_t n = strlen(p->ext);
-			if(n > z) {
-				z = n;
-			}
-			w += n;
-		}
-		char *ext_order = getenv("M_EXT_ORDER");
-		if(!ext_order) {
-			ext_order = xmalloc(sizeof(*ext_order), w + 1);
-			for(w = 0, p = extcom; p->ext; p++) {
-				size_t n = strlen(p->ext);
-				strcpy(ext_order + w, p->ext);
-				w += n;
-			}
-		}
-		char *file_ext = xmalloc(sizeof(*file_ext), o + z + 1);
-		strcpy(file_ext, file);
-		for(char const *ext, *ct = ext_order; (ext = ct); ) {
-			ct = strchr(ext + 1, '.');
-			if(ct) {
-				size_t n = ct - ext;
-				strncpy(file_ext + o, ext, n);
-				file_ext[o + n] = '\0';
-			} else {
-				strcpy(file_ext + o, ext);
-			}
-			in = fopen(file_ext, "r");
-			if(in) {
-				file = file_ext;
-				com = p->com;
+	if(streq(file, "--")) {
+		int fili = argi;
+		for(; (argi < argc) && !streq(argv[argi], "--"); argi++)
+			;
+		int filc = (argi < argc) ? argi++ : argi;
+		while(fili < filc) {
+			file = argv[fili++];
+			ec = process(file, argi, argc, argv, list_rules, list_commands, com, pie);
+			if(ec != EXIT_SUCCESS) {
 				break;
 			}
 		}
-	}
-	if(!in) {
-		perror(file);
-		fail();
-	}
-
-	if(!com) {
-		char const *ext = get_file_extension(file);
-		com = get_comment(ext);
-		if(!com) {
-			fprintf(stderr, "%s: unknown file type", file);
-			fail();
-		}
-	}
-
-	struct rule *rules   = NULL;
-	size_t       n_rules = read_rules(file, in, com, &rules);
-	if(!n_rules) {
-		if(errno == 0) {
-			fprintf(stderr, "%s: no rules found\n", file);
-		} else {
-			perror(file);
-		}
-		fail();
-	}
-
-	fclose(in);
-
-	int ec = EXIT_SUCCESS;
-
-	if(list_rules) {
-		for(size_t i = 0; i < n_rules; i++) {
-			if(list_commands) {
-				if(rules[i].name.n > 0) {
-					fputs(rules[i].name.cs, stdout), puts(":");
-				}
-				for(size_t j = 0; j < rules[i].n_commands; j++) {
-					(void)expand(
-						print,
-						pie,
-						rules[i].command[j].cs,
-						argc - argi, &argv[argi],
-						n_rules, rules, rules[i].name.cs,
-						file
-					);
-				}
-			} else if(rules[i].name.n > 0) {
-				puts(rules[i].name.cs);
-			}
-		}
 	} else {
-		char const *rule = (argi < argc) ? argv[argi++] : "-";
-		if(streq(rule, "-")) rule = rules[0].name.cs;
-		ec = execute(pie, argc - argi, &argv[argi], n_rules, rules, rule, file);
+		ec = process(file, argi, argc, argv, list_rules, list_commands, com, pie);
 	}
-
 	return ec;
 }
