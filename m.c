@@ -450,6 +450,7 @@ static size_t read_rules(char const *file, FILE *in, struct comment const *com, 
 				p->depends    = NULL;
 				p->command    = p->first = NULL;
 				p->n_commands = 0;
+				while(isspace(*s)) s++;
 				if(*s == ':') {
 					s++;
 					for(cs = s; (*s == ':') || (*s == '_') || (*s == '-') || isalnum(*s); s++);
