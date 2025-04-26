@@ -457,7 +457,7 @@ static size_t read_rules(char const *file, FILE *in, struct comment const *com, 
 					m = s - cs;
 					p->depends = duplicate(cs, m);
 				}
-				if(*s) s++;
+//				if(*s) s++;
 		append_command:
 				while(isspace(*s)) s++;
 				p->command = xrealloc(p->command, sizeof(*(p->command)), p->n_commands + 1);
