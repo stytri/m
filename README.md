@@ -27,12 +27,13 @@ OPTION:
 	-1, --single       when expanding multi-command rules,
 	                   only multiply expand the first instance
 	-t, --type         define rule sigils according to argument:
-	                   TYPE          - one of: .c .asm .sh
+	                   TYPE          - one of: .c .asm .html .md .sh
 	-s, --sigils       define rule sigils, has the arguments:
 	                   COMMENT       - the character sequence of an inline comment
 	                   RULE          - the character sequence indicating a new rule
 	                   CONTINUATION  - the character sequence indicating the continuation of rule command
 	                   AGGREGATION   - the character sequence indicating the start of a new rule command
+	                   END           - the character sequence at the end of a comment line
 
 FILE is either a single filename or, 1 or more file names book-ended with the double-character '--'
 e.g:

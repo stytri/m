@@ -288,6 +288,7 @@ struct comment {
 	struct string rule;
 	struct string continuation;
 	struct string aggregation;
+	struct string end;
 };
 
 #define COM(COM__cs)  { \
@@ -295,13 +296,20 @@ struct comment {
 	.cs = (COM__cs) \
 }
 static struct comment const c_style_comments = (struct comment){
-	COM("//"), COM("::"), COM(":+"), COM(":&")
+	COM("//"), COM("::"), COM(":+"), COM(":&"), COM("")
 };
 static struct comment const asm_style_comments = (struct comment){
-	COM(";" ), COM("::"), COM(":+"), COM(":&")
+	COM(";" ), COM("::"), COM(":+"), COM(":&"), COM("")
+};
+static struct comment const html_style_comments = (struct comment){
+	COM("<!--" ), COM("::"), COM(":+"), COM(":&"), COM("--!>")
+};
+static struct comment const md_style_comments = (struct comment){
+	// https://stackoverflow.com/questions/4823468/comments-in-markdown
+	COM("[comment]: # (" ), COM("::"), COM(":+"), COM(":&"), COM(")")
 };
 static struct comment const shell_style_comments = (struct comment){
-	COM("#" ), COM("::"), COM(":+"), COM(":&")
+	COM("#" ), COM("::"), COM(":+"), COM(":&"), COM("")
 };
 #undef COM
 
@@ -329,6 +337,12 @@ static struct extension {
 	{ ".scm" ,   &asm_style_comments },
 	{ ".reb" ,   &asm_style_comments },
 	{ ".red" ,   &asm_style_comments },
+	{ ".htm" ,  &html_style_comments },
+	{ ".html",  &html_style_comments },
+	{ ".xml" ,  &html_style_comments },
+	{ ".xht" ,  &html_style_comments },
+	{ ".xhtml", &html_style_comments },
+	{ ".md"  ,    &md_style_comments },
 	{ ".sh"  , &shell_style_comments },
 	{ ".rb"  , &shell_style_comments },
 	{ ".pl"  , &shell_style_comments },
@@ -390,12 +404,23 @@ static size_t read_rules(char const *file, FILE *in, struct comment const *com, 
 	size_t         n = 0, m;
 
 	size_t lineno = 1;
-	char const *s = read_line(in), *cs;
+	char const *cs;
+	char *s = read_line(in);
 	for(bool found_rule = false, skip_rule = false; !found_rule; ) {
 		for(; s && !is_comment(com, s); s = read_line(in), ++lineno)
 			;
 		for(; s &&  is_comment(com, s); s = read_line(in), ++lineno) {
 			for(s += com->comment.n; isspace(*s); s++);
+			if(com->end.n > 0) {
+				m = strlen(s);
+				if(m >= com->end.n) {
+					if(memcmp(s + m - com->end.n, com->end.cs, com->end.n) == 0) {
+						m -= com->end.n;
+						while((m > 0) && isspace(s[m])) m--;
+						s[m] = '\0';
+					}
+				}
+			}
 			if(is_continuation(com, s)) {
 				if(skip_rule || !p) continue;
 				s += com->continuation.n;
@@ -946,7 +971,7 @@ static int process(char const *file, int argi, int argc, char **argv, bool list_
 }
 
 static void version(FILE *out) {
-	fputs("m 3.3.0\n", out);
+	fputs("m 4.0.0\n", out);
 }
 
 static void usage(FILE *out) {
@@ -962,12 +987,13 @@ static void usage(FILE *out) {
 	fprintf(out, "\t-1, --single       when expanding multi-command rules,\n");
 	fprintf(out, "\t                   only multiply expand the first instance\n");
 	fprintf(out, "\t-t, --type         define rule sigils according to argument:\n");
-	fprintf(out, "\t                   TYPE          - one of: .c .asm .sh\n");
+	fprintf(out, "\t                   TYPE          - one of: .c .asm .html .md .sh\n");
 	fprintf(out, "\t-s, --sigils       define rule sigils, has the arguments:\n");
 	fprintf(out, "\t                   COMMENT       - the character sequence of an inline comment\n");
 	fprintf(out, "\t                   RULE          - the character sequence indicating a new rule\n");
 	fprintf(out, "\t                   CONTINUATION  - the character sequence indicating the continuation of rule command\n");
 	fprintf(out, "\t                   AGGREGATION   - the character sequence indicating the start of a new rule command\n");
+	fprintf(out, "\t                   END           - the character sequence at the end of a comment line\n");
 	fprintf(out, "\n");
 	fprintf(out, "FILE is either a single filename or, 1 or more file names book-ended with the double-character '--'\n");
 	fprintf(out, "e.g:\n");
@@ -1035,7 +1061,7 @@ int main(int argc, char **argv) {
 		} else if(is_one_of(argv[argi], "-s", "--sigils")) {
 			no_fail = false;
 			static struct comment ucom;
-			if((argc - argi) > 4) {
+			if((argc - argi) > 5) {
 				ucom.comment.cs      = argv[++argi];
 				ucom.comment.n       = strlen(ucom.comment.cs);
 				ucom.rule.cs         = argv[++argi];
@@ -1044,6 +1070,8 @@ int main(int argc, char **argv) {
 				ucom.continuation.n  = strlen(ucom.continuation.cs);
 				ucom.aggregation.cs  = argv[++argi];
 				ucom.aggregation.n   = strlen(ucom.aggregation.cs);
+				ucom.end.cs          = argv[++argi];
+				ucom.end.n           = strlen(ucom.aggregation.cs);
 				com = &ucom;
 			} else {
 				goto print_usage_and_fail;
