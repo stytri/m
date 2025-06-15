@@ -34,7 +34,7 @@ OPTION:
 	                   CONTINUATION  - the character sequence indicating the continuation of rule command
 	                   AGGREGATION   - the character sequence indicating the start of a new rule command
 	                   END           - the character sequence at the end of a comment line
-
+	-D, --define NAME[=REPLACEMENT]
 FILE is either a single filename or, 1 or more file names book-ended with the double-character '--'
 e.g:
 	m m.c
@@ -92,7 +92,7 @@ Variables are indicated by the `$` character; unlike make, they are not enclosed
 
 `$$` results in a single `$`.
 
-The alternate forms can be configured via the following rule/environment variables:
+The alternate forms can be configured via the following rule/environment/define variables:
 
 `M_ALT_RULE` for `$:`
 

@@ -125,7 +125,7 @@ static void readme(void) {
 	puts("");
 	puts("`$$` results in a single `$`.");
 	puts("");
-	puts("The alternate forms can be configured via the following rule/environment variables:");
+	puts("The alternate forms can be configured via the following rule/environment/define variables:");
 	puts("");
 	puts("`M_ALT_RULE` for `$:`");
 	puts("");
@@ -382,6 +382,29 @@ struct rule {
 	struct string *first;
 };
 
+struct def {
+	struct string  name;
+	struct string  replacement;
+}            *def    = NULL;
+static size_t n_defs = 0;
+
+static void add_def(char const *cs) {
+	size_t n = strcspn(cs, "=");
+	def = xrealloc(def, sizeof(*def), n_defs + 1);
+	def[n_defs].name.cs = cs;
+	def[n_defs].name.n  = n;
+	if(cs[n] == '=') {
+		n++;
+		def[n_defs].replacement.cs = cs + n;
+		def[n_defs].replacement.n  = strlen(cs + n);
+	} else {
+		def[n_defs].replacement.cs = "";
+		def[n_defs].replacement.n  = 0;
+	}
+	n_defs++;
+	return;
+}
+
 static char const *get_var(char const *cs, size_t n_rules, struct rule const *rules, char const *cd) {
 	char const *ct = NULL;
 	for(size_t i = 0; i < n_rules; i++) {
@@ -389,6 +412,13 @@ static char const *get_var(char const *cs, size_t n_rules, struct rule const *ru
 			if(rules[i].n_commands > 0) {
 				ct = rules[i].command[0].cs;
 			}
+			break;
+		}
+	}
+	size_t n = strlen(cs);
+	for(size_t i = 0; i < n_defs; i++) {
+		if((n == def[i].name.n) && strneq(cs, def[i].name.cs, n)) {
+			ct = def[i].replacement.cs;
 			break;
 		}
 	}
@@ -971,7 +1001,7 @@ static int process(char const *file, int argi, int argc, char **argv, bool list_
 }
 
 static void version(FILE *out) {
-	fputs("m 4.0.0\n", out);
+	fputs("m 4.1.0\n", out);
 }
 
 static void usage(FILE *out) {
@@ -994,6 +1024,7 @@ static void usage(FILE *out) {
 	fprintf(out, "\t                   CONTINUATION  - the character sequence indicating the continuation of rule command\n");
 	fprintf(out, "\t                   AGGREGATION   - the character sequence indicating the start of a new rule command\n");
 	fprintf(out, "\t                   END           - the character sequence at the end of a comment line\n");
+	fprintf(out, "\t-D, --define NAME[=REPLACEMENT]");
 	fprintf(out, "\n");
 	fprintf(out, "FILE is either a single filename or, 1 or more file names book-ended with the double-character '--'\n");
 	fprintf(out, "e.g:\n");
@@ -1073,6 +1104,13 @@ int main(int argc, char **argv) {
 				ucom.end.cs          = argv[++argi];
 				ucom.end.n           = strlen(ucom.aggregation.cs);
 				com = &ucom;
+			} else {
+				goto print_usage_and_fail;
+			}
+		} else if(is_one_of(argv[argi], "-D", "--define")) {
+			no_fail = false;
+			if((argc - argi) > 1) {
+				add_def(argv[++argi]);
 			} else {
 				goto print_usage_and_fail;
 			}
