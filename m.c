@@ -317,6 +317,7 @@ static struct extension {
 	char const           *ext;
 	struct comment const *com;
 }	const extcom[] = {
+	{ ".md"  ,    &md_style_comments },
 	{ ".c"   ,     &c_style_comments },
 	{ ".cc"  ,     &c_style_comments },
 	{ ".c++" ,     &c_style_comments },
@@ -342,7 +343,6 @@ static struct extension {
 	{ ".xml" ,  &html_style_comments },
 	{ ".xht" ,  &html_style_comments },
 	{ ".xhtml", &html_style_comments },
-	{ ".md"  ,    &md_style_comments },
 	{ ".sh"  , &shell_style_comments },
 	{ ".rb"  , &shell_style_comments },
 	{ ".pl"  , &shell_style_comments },
@@ -1001,7 +1001,7 @@ static int process(char const *file, int argi, int argc, char **argv, bool list_
 }
 
 static void version(FILE *out) {
-	fputs("m 4.1.0\n", out);
+	fputs("m 4.1.1\n", out);
 }
 
 static void usage(FILE *out) {
