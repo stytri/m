@@ -436,7 +436,7 @@ static size_t read_rules(char const *file, FILE *in, struct comment const *com, 
 	size_t lineno = 1;
 	char const *cs;
 	char *s = read_line(in);
-	for(bool found_rule = false, skip_rule = false; !found_rule; ) {
+	for(bool found_rule = false, skip_rule = false; s && !found_rule; ) {
 		for(; s && !is_comment(com, s); s = read_line(in), ++lineno)
 			;
 		for(; s &&  is_comment(com, s); s = read_line(in), ++lineno) {
@@ -1001,7 +1001,7 @@ static int process(char const *file, int argi, int argc, char **argv, bool list_
 }
 
 static void version(FILE *out) {
-	fputs("m 4.1.1\n", out);
+	fputs("m 4.1.2\n", out);
 }
 
 static void usage(FILE *out) {
