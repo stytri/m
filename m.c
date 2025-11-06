@@ -57,9 +57,12 @@ static void license(void) {
 // :&  file2
 // :&  file3
 //
+static void version(FILE *out);
 static void usage(FILE *out);
 static void readme(void) {
 	puts("# m");
+	puts("");
+	fputs("## Version ", stdout); version(stdout);
 	puts("");
 	puts("a mini make");
 	puts("");
@@ -72,6 +75,8 @@ static void readme(void) {
 	puts("The comment type is determined from the file extension (see the function `get_comment` for the list of recognised extensions - edit to add more!), or may be determined by command line options.");
 	puts("");
 	puts("If no extension is given **m** attempts to discover it by opening the file with known extensions; the order of opening can be overridden by the `M_EXT_ORDER` environment variable.");
+	puts("");
+	puts("If no rules are found then, for some file extensions, **m** uses an internal default rule.");
 	puts("");
 	puts("## Command Line");
 	puts("");
@@ -313,42 +318,98 @@ static struct comment const shell_style_comments = (struct comment){
 };
 #undef COM
 
+static char const *c_default_rules[] = {
+	"// ::-",
+	"// :+  $CC -o $+^ $\"* $\"!",
+	NULL
+};
+
+static char const *cxx_default_rules[] = {
+	"// ::-",
+	"// :+  $CC -o $+^ $\"* $\"!",
+	NULL
+};
+
+static char const *cs_default_rules[] = {
+	"// ::-",
+	"// :+  mcs $\"* $\"!",
+	NULL
+};
+
+static char const *d_default_rules[] = {
+	"// ::-",
+	"// :+  dmd $\"* $\"!",
+	NULL
+};
+
+static char const *fs_default_rules[] = {
+	"// ::-",
+	"// :+  fsc -o $+^ $\"* $\"!",
+	NULL
+};
+
+static char const *go_default_rules[] = {
+	"// ::-",
+	"// :+  go build $\"* $\"!",
+	NULL
+};
+
+static char const *java_default_rules[] = {
+	"// ::-",
+	"// :+  javac $\"* $\"!",
+	NULL
+};
+
+static char const *rs_default_rules[] = {
+	"// ::-",
+	"// :+  rustc $\"* $\"!",
+	NULL
+};
+
+static char const *ts_default_rules[] = {
+	"// ::-",
+	"// :+  tsc $\"* $\"!",
+	NULL
+};
+
 static struct extension {
 	char const           *ext;
 	struct comment const *com;
+	char           const **dr;
 }	const extcom[] = {
-	{ ".md"  ,    &md_style_comments },
-	{ ".c"   ,     &c_style_comments },
-	{ ".cc"  ,     &c_style_comments },
-	{ ".c++" ,     &c_style_comments },
-	{ ".cpp" ,     &c_style_comments },
-	{ ".cxx" ,     &c_style_comments },
-	{ ".d"   ,     &c_style_comments },
-	{ ".java",     &c_style_comments },
-	{ ".js"  ,     &c_style_comments },
-	{ ".cs"  ,     &c_style_comments },
-	{ ".fs"  ,     &c_style_comments },
-	{ ".rs"  ,     &c_style_comments },
-	{ ".go"  ,     &c_style_comments },
-	{ ".asm" ,   &asm_style_comments },
-	{ ".l"   ,   &asm_style_comments },
-	{ ".cl"  ,   &asm_style_comments },
-	{ ".ls"  ,   &asm_style_comments },
-	{ ".lisp",   &asm_style_comments },
-	{ ".scm" ,   &asm_style_comments },
-	{ ".reb" ,   &asm_style_comments },
-	{ ".red" ,   &asm_style_comments },
-	{ ".htm" ,  &html_style_comments },
-	{ ".html",  &html_style_comments },
-	{ ".xml" ,  &html_style_comments },
-	{ ".xht" ,  &html_style_comments },
-	{ ".xhtml", &html_style_comments },
-	{ ".sh"  , &shell_style_comments },
-	{ ".rb"  , &shell_style_comments },
-	{ ".pl"  , &shell_style_comments },
-	{ ".py"  , &shell_style_comments },
-	{ ""     , &shell_style_comments },
-	{ NULL   ,  NULL                 }
+	{ ".md"  ,    &md_style_comments, NULL },
+	{ ".c"   ,     &c_style_comments, c_default_rules },
+	{ ".cc"  ,     &c_style_comments, cxx_default_rules },
+	{ ".c++" ,     &c_style_comments, cxx_default_rules },
+	{ ".cpp" ,     &c_style_comments, cxx_default_rules },
+	{ ".cxx" ,     &c_style_comments, cxx_default_rules },
+	{ ".d"   ,     &c_style_comments, d_default_rules },
+	{ ".java",     &c_style_comments, java_default_rules },
+	{ ".js"  ,     &c_style_comments, NULL },
+	{ ".ts"  ,     &c_style_comments, ts_default_rules },
+	{ ".cs"  ,     &c_style_comments, cs_default_rules },
+	{ ".fs"  ,     &c_style_comments, fs_default_rules },
+	{ ".rs"  ,     &c_style_comments, rs_default_rules },
+	{ ".go"  ,     &c_style_comments, go_default_rules },
+	{ ".asm" ,   &asm_style_comments, NULL },
+	{ ".l"   ,   &asm_style_comments, NULL },
+	{ ".cl"  ,   &asm_style_comments, NULL },
+	{ ".ls"  ,   &asm_style_comments, NULL },
+	{ ".lisp",   &asm_style_comments, NULL },
+	{ ".scm" ,   &asm_style_comments, NULL },
+	{ ".reb" ,   &asm_style_comments, NULL },
+	{ ".red" ,   &asm_style_comments, NULL },
+	{ ".htm" ,  &html_style_comments, NULL },
+	{ ".html",  &html_style_comments, NULL },
+	{ ".xml" ,  &html_style_comments, NULL },
+	{ ".xht" ,  &html_style_comments, NULL },
+	{ ".xhtml", &html_style_comments, NULL },
+	{ ".sh"  , &shell_style_comments, NULL },
+	{ ".rb"  , &shell_style_comments, NULL },
+	{ ".pl"  , &shell_style_comments, NULL },
+	{ ".py"  , &shell_style_comments, NULL },
+	{ ""     , &shell_style_comments, NULL },
+	{ NULL   ,  NULL                , NULL }
 };
 
 static struct comment const *get_comment(char const *ext) {
@@ -356,6 +417,13 @@ static struct comment const *get_comment(char const *ext) {
 	for(; p->ext && !streq(ext, p->ext); p++)
 		;
 	return p->com;
+}
+
+static char const **get_default_rules(char const *ext) {
+	struct extension const *p = extcom;
+	for(; p->ext && !streq(ext, p->ext); p++)
+		;
+	return p->dr;
 }
 
 static int is_comment(struct comment const *com, char const *ln) {
@@ -428,7 +496,31 @@ static char const *get_var(char const *cs, size_t n_rules, struct rule const *ru
 	return cd;
 }
 
-static size_t read_rules(char const *file, FILE *in, struct comment const *com, struct rule **rules) {
+static char *s_read_line(void *p) {
+	static char *line = NULL;
+	char const ***spp = p;
+	char const  *s = **spp;
+	xfree(line), line = NULL;
+	if(s) {
+		line = duplicate(s, strlen(s));
+		++*spp;
+	}
+	return line;
+}
+
+static int s_error(void *) {
+	return 0;
+}
+
+static char *f_read_line(void *p) {
+	return read_line(p);
+}
+
+static int f_error(void *p) {
+	return ferror(p);
+}
+
+static size_t read_rules(char const *, void *in, char *(*read_line)(void *), int (*error)(void *), struct comment const *com, struct rule **rules) {
 	struct rule   *r = NULL, *p = NULL;
 	struct string *c = NULL;
 	size_t         n = 0, m;
@@ -525,7 +617,7 @@ static size_t read_rules(char const *file, FILE *in, struct comment const *com, 
 			c = NULL;
 		}
 	}
-	if(!ferror(in)) {
+	if(!error(in)) {
 		*rules = r;
 		return n;
 	}
@@ -947,15 +1039,24 @@ static int process(char const *file, int argi, int argc, char **argv, bool list_
 		}
 	}
 
+	errno = 0;
 	struct rule *rules   = NULL;
-	size_t       n_rules = read_rules(file, in, com, &rules);
+	size_t       n_rules = read_rules(file, in, f_read_line, f_error, com, &rules);
 	if(!n_rules) {
 		if(errno == 0) {
-			fprintf(stderr, "%s: no rules found\n", file);
+			char const *ext = get_file_extension(file);
+			char const **r = get_default_rules(ext);
+			if(r) {
+				n_rules = read_rules(file, &r, s_read_line, s_error, com, &rules);
+			}
+			if(!n_rules) {
+				fprintf(stderr, "%s: no rules found\n", file);
+				fail();
+			}
 		} else {
 			perror(file);
+			fail();
 		}
-		fail();
 	}
 
 	fclose(in);
@@ -1001,7 +1102,7 @@ static int process(char const *file, int argi, int argc, char **argv, bool list_
 }
 
 static void version(FILE *out) {
-	fputs("m 4.1.2\n", out);
+	fputs("4.2.0\n", out);
 }
 
 static void usage(FILE *out) {

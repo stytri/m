@@ -1,5 +1,7 @@
 # m
 
+## Version 4.2.0
+
 a mini make
 
 Inspired by https://github.com/michaelfm1211/ec
@@ -11,6 +13,8 @@ Uses a comment block in the source file to specify how to compile it.
 The comment type is determined from the file extension (see the function `get_comment` for the list of recognised extensions - edit to add more!), or may be determined by command line options.
 
 If no extension is given **m** attempts to discover it by opening the file with known extensions; the order of opening can be overridden by the `M_EXT_ORDER` environment variable.
+
+If no rules are found then, for some file extensions, **m** uses an internal default rule.
 
 ## Command Line
 
