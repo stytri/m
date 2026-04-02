@@ -906,7 +906,7 @@ done:
 	if(!quiet) {
 		puts(e->s);
 	}
-	return e->action(e->s);
+	return (e->s && *e->s) ? e->action(e->s) : EXIT_SUCCESS;
 }
 
 static int expand(int (*action)(char const *), bool pie, char const *cs, int argn, char **argv, size_t n_rules, struct rule *rules, char const *rule, char const *file) {
@@ -1102,7 +1102,7 @@ static int process(char const *file, int argi, int argc, char **argv, bool list_
 }
 
 static void version(FILE *out) {
-	fputs("4.2.0\n", out);
+	fputs("4.2.1\n", out);
 }
 
 static void usage(FILE *out) {
