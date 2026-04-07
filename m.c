@@ -156,7 +156,7 @@ static void readme(void) {
 	puts("");
 	puts("Starting with `_` or an alphabetic character, and continuing with `-`, `_` and alphanumeric characters.");
 	puts("");
-	puts("**m** attempts to obtain the value of the corresponding environment variable; if it fails, it is silently omitted, except in the case of `$CC`, `$DBG`, and `$RM` where it provides a system related default.");
+	puts("**m** attempts to obtain the value of the corresponding environment variable; if it fails, it is silently omitted, except in the case of `$CC`, `$DBG`, `$CP`, and `$RM` where it provides a system related default.");
 	puts("");
 	puts("Expansion is recursive.");
 	puts("");
@@ -888,6 +888,12 @@ static int expander(struct env *e, size_t n, char const *cs, struct cslist const
 #elif defined __clang__
 				CONCATENATE(e->s, n, "lldb", 4);
 #endif
+			} else if(streq(ct, "CP")) {
+#if defined _WIN32
+				CONCATENATE(e->s, n, "copy /y", 3);
+#else
+				CONCATENATE(e->s, n, "cp -f", 2);
+#endif
 			} else if(streq(ct, "RM")) {
 #if defined _WIN32
 				CONCATENATE(e->s, n, "del", 3);
@@ -1102,7 +1108,7 @@ static int process(char const *file, int argi, int argc, char **argv, bool list_
 }
 
 static void version(FILE *out) {
-	fputs("4.2.1\n", out);
+	fputs("4.2.2\n", out);
 }
 
 static void usage(FILE *out) {

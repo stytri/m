@@ -1,6 +1,6 @@
 # m
 
-## Version 4.2.1
+## Version 4.2.2
 
 a mini make
 
@@ -122,7 +122,7 @@ Expansion is recursive.
 
 Starting with `_` or an alphabetic character, and continuing with `-`, `_` and alphanumeric characters.
 
-**m** attempts to obtain the value of the corresponding environment variable; if it fails, it is silently omitted, except in the case of `$CC`, `$DBG`, and `$RM` where it provides a system related default.
+**m** attempts to obtain the value of the corresponding environment variable; if it fails, it is silently omitted, except in the case of `$CC`, `$DBG`, `$CP`, and `$RM` where it provides a system related default.
 
 Expansion is recursive.
 
