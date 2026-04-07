@@ -50,6 +50,7 @@ static void license(void) {
 // :+  echo $CC $CFLAGS
 // :+      -Og -g -o $FILES $FILES.c
 // :&  echo $DBG -tui --args $FILES $"*
+// :&  echo $CP $FILES ../
 // :&  echo $RM $FILES
 //
 // ::FILES
@@ -890,7 +891,7 @@ static int expander(struct env *e, size_t n, char const *cs, struct cslist const
 #endif
 			} else if(streq(ct, "CP")) {
 #if defined _WIN32
-				CONCATENATE(e->s, n, "copy /y", 3);
+				CONCATENATE(e->s, n, "copy /y", 7);
 #else
 				CONCATENATE(e->s, n, "cp -f", 2);
 #endif
@@ -1108,7 +1109,7 @@ static int process(char const *file, int argi, int argc, char **argv, bool list_
 }
 
 static void version(FILE *out) {
-	fputs("4.2.2\n", out);
+	fputs("4.2.3\n", out);
 }
 
 static void usage(FILE *out) {
