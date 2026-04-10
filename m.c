@@ -176,6 +176,7 @@ static void readme(void) {
 #include <stdlib.h>
 #include <stdarg.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <string.h>
 #include <ctype.h>
 #include <errno.h>
@@ -1109,7 +1110,7 @@ static int process(char const *file, int argi, int argc, char **argv, bool list_
 }
 
 static void version(FILE *out) {
-	fputs("4.2.3\n", out);
+	fputs("4.2.4\n", out);
 }
 
 static void usage(FILE *out) {
