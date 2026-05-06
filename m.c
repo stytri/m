@@ -1094,7 +1094,14 @@ static int process(char const *file, int argi, int argc, char **argv, bool list_
 	} else {
 		char const *rule = (argi < argc) ? argv[argi++] : "-";
 		if(streq(rule, "-")) rule = rules[0].name.cs;
-		ec = execute(pie, argc - argi, &argv[argi], n_rules, rules, rule, file);
+		char *temp = duplicate(rule, strlen(rule)+1);
+		for(char *rulep = temp; rulep && *rulep; ) {
+			char *nextp = strchr(rulep, ';');
+			if(nextp) *nextp++ = '\0';
+			ec = execute(pie, argc - argi, &argv[argi], n_rules, rules, rulep, file);
+			rulep = nextp;
+		}
+		xfree(temp);
 	}
 
 	for(size_t i = 0; i < n_rules; i++) {
@@ -1110,11 +1117,11 @@ static int process(char const *file, int argi, int argc, char **argv, bool list_
 }
 
 static void version(FILE *out) {
-	fputs("4.2.4\n", out);
+	fputs("4.2.5\n", out);
 }
 
 static void usage(FILE *out) {
-	fprintf(out, "usage: m [OPTION...] FILE [RULE] [ARGUMENTS]...\n");
+	fprintf(out, "usage: m [OPTION...] FILE [RULE[;RULE]...]] [ARGUMENTS]...\n");
 	fprintf(out, "OPTION:\n");
 	fprintf(out, "\t-h, --help         display help\n");
 	fprintf(out, "\t-v, --version      display version\n");

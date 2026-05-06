@@ -1,6 +1,6 @@
 # m
 
-## Version 4.2.4
+## Version 4.2.5
 
 a mini make
 
@@ -19,7 +19,7 @@ If no rules are found then, for some file extensions, **m** uses an internal def
 ## Command Line
 
 ```
-usage: m [OPTION...] FILE [RULE] [ARGUMENTS]...
+usage: m [OPTION...] FILE [RULE[;RULE]...]] [ARGUMENTS]...
 OPTION:
 	-h, --help         display help
 	-v, --version      display version
