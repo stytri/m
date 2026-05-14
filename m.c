@@ -628,7 +628,7 @@ static size_t read_rules(char const *, void *in, char *(*read_line)(void *), int
 	return 0;
 }
 
-static char const *get_file_path(char const *file, size_t *len) {
+static char *get_file_path(char const *file, size_t *len) {
 	char const *ct;
 	if((ct = strrchr(file, '/'))
 #if defined _WIN32
@@ -636,7 +636,7 @@ static char const *get_file_path(char const *file, size_t *len) {
 #endif
 	) {
 		if(len) *len = ct - file + 1;
-		return file;
+		return (char *)file;
 	}
 	if(len) *len = 0;
 	return "";
@@ -644,7 +644,7 @@ static char const *get_file_path(char const *file, size_t *len) {
 #define get_file_path(get_file_path__file,...)\
 	(get_file_path)((get_file_path__file),__VA_ARGS__+0)
 
-static char const *get_file_extension(char const *file, size_t *len) {
+static char *get_file_extension(char const *file, size_t *len) {
 	char const *ct = strrchr(file, '.');
 	if(ct) {
 		if(!strchr(ct, '/')
@@ -653,7 +653,7 @@ static char const *get_file_extension(char const *file, size_t *len) {
 #endif
 		) {
 			if(len) *len = strlen(ct);
-			return ct;
+			return (char *)ct;
 		}
 	}
 	if(len) *len = 0;
@@ -985,9 +985,8 @@ static int print(char const *cs) {
 	return EXIT_SUCCESS;
 }
 
-static int process(char const *file, int argi, int argc, char **argv, bool list_rules, bool list_commands, struct comment const *com, bool pie) {
-	bool free_file = false;
-	FILE *in = fopen(file, "r");
+static FILE *open_file(char const *file, char const *mode, char const **file_ext_p, struct comment const **com_p) {
+	FILE *in = fopen(file, mode);
 	if(!in) {
 		struct extension const *p = extcom;
 		size_t           const  o = strlen(file);
@@ -1023,46 +1022,68 @@ static int process(char const *file, int argi, int argc, char **argv, bool list_
 			} else {
 				strcpy(file_ext + o, ext);
 			}
-			in = fopen(file_ext, "r");
+			in = fopen(file_ext, mode);
 			if(in) {
-				free_file = true;
-				file = file_ext;
-				com = p->com;
+				*file_ext_p = file_ext;
+				if(com_p) {
+					*com_p = p->com;
+				}
 				break;
 			}
 		}
-		if(!free_file) xfree(file_ext);
+		if(!in) xfree(file_ext);
 	}
+	return in;
+}
+
+static int process(char const *rfile, char const *file, int argi, int argc, char **argv, bool list_rules, bool list_commands, struct comment const *com, bool pie) {
+	char *temp;
+
+	bool separate_rule_file = rfile != file;
+	FILE *in = open_file((temp = (char *)rfile), "r", &rfile, &com);
+	bool free_rfile = rfile != temp;
+	bool free_file = false;
 	if(!in) {
-		perror(file);
+		perror(rfile);
 		fail();
+	}
+	if(separate_rule_file) {
+		FILE *fp = open_file((temp = (char *)file), "r", &file, NULL);
+		free_file = file != temp;
+		if(!fp) {
+			perror(file);
+			fail();
+		}
+		fclose(fp);
+	} else {
+		file = rfile;
 	}
 
 	if(!com) {
-		char const *ext = get_file_extension(file);
-		com = get_comment(ext);
+		temp = get_file_extension(rfile);
+		com = get_comment(temp);
 		if(!com) {
-			fprintf(stderr, "%s: unknown file type", file);
+			fprintf(stderr, "%s: unknown rfile type", rfile);
 			fail();
 		}
 	}
 
 	errno = 0;
 	struct rule *rules   = NULL;
-	size_t       n_rules = read_rules(file, in, f_read_line, f_error, com, &rules);
+	size_t       n_rules = read_rules(rfile, in, f_read_line, f_error, com, &rules);
 	if(!n_rules) {
 		if(errno == 0) {
-			char const *ext = get_file_extension(file);
-			char const **r = get_default_rules(ext);
+			temp = get_file_extension(rfile);
+			char const **r = get_default_rules(temp);
 			if(r) {
-				n_rules = read_rules(file, &r, s_read_line, s_error, com, &rules);
+				n_rules = read_rules(rfile, &r, s_read_line, s_error, com, &rules);
 			}
 			if(!n_rules) {
-				fprintf(stderr, "%s: no rules found\n", file);
+				fprintf(stderr, "%s: no rules found\n", rfile);
 				fail();
 			}
 		} else {
-			perror(file);
+			perror(rfile);
 			fail();
 		}
 	}
@@ -1094,7 +1115,7 @@ static int process(char const *file, int argi, int argc, char **argv, bool list_
 	} else {
 		char const *rule = (argi < argc) ? argv[argi++] : "-";
 		if(streq(rule, "-")) rule = rules[0].name.cs;
-		char *temp = duplicate(rule, strlen(rule)+1);
+		temp = duplicate(rule, strlen(rule)+1);
 		for(char *rulep = temp; rulep && *rulep; ) {
 			char *nextp = strchr(rulep, ';');
 			if(nextp) *nextp++ = '\0';
@@ -1111,13 +1132,14 @@ static int process(char const *file, int argi, int argc, char **argv, bool list_
 			xfree(rules[i].command[j].cs);
 		}
 	}
+	if(free_rfile) xfree(rfile);
 	if(free_file) xfree(file);
 
 	return ec;
 }
 
 static void version(FILE *out) {
-	fputs("4.2.5\n", out);
+	fputs("4.3.0\n", out);
 }
 
 static void usage(FILE *out) {
@@ -1127,6 +1149,7 @@ static void usage(FILE *out) {
 	fprintf(out, "\t-v, --version      display version\n");
 	fprintf(out, "\t    --license      display license\n");
 	fprintf(out, "\t    --readme       display readme\n");
+	fprintf(out, "\t-m FILE            read rules from a separate FILE\n");
 	fprintf(out, "\t-r, --rules        display available rules\n");
 	fprintf(out, "\t-c, --commands     display commands executed by rules\n");
 	fprintf(out, "\t-q, --quiet        do not display commands as they are executed\n");
@@ -1159,6 +1182,7 @@ int _dowildcard = -1;
 #endif
 
 int main(int argc, char **argv) {
+	char const *rule_file = NULL;
 	bool list_rules = false;
 	bool list_commands = false;
 	struct comment const *com = NULL;
@@ -1182,6 +1206,13 @@ int main(int argc, char **argv) {
 		} else if(is_one_of(argv[argi], "--readme")) {
 			no_fail = true;
 			readme();
+		} else if(is_one_of(argv[argi], "-m")) {
+			no_fail = false;
+			if((argc - argi) > 1) {
+				rule_file = argv[++argi];
+			} else {
+				goto print_usage_and_fail;
+			}
 		} else if(is_one_of(argv[argi], "-r", "--rules")) {
 			no_fail = true;
 			list_rules = true;
@@ -1246,7 +1277,7 @@ print_usage_and_fail:
 	}
 
 	int ec;
-	char const *file = argv[argi++];
+	char const *file = argv[argi++], *rfile;
 	if(streq(file, "--")) {
 		int fili = argi;
 		for(; (argi < argc) && !streq(argv[argi], "--"); argi++)
@@ -1254,13 +1285,15 @@ print_usage_and_fail:
 		int filc = (argi < argc) ? argi++ : argi;
 		while(fili < filc) {
 			file = argv[fili++];
-			ec = process(file, argi, argc, argv, list_rules, list_commands, com, pie);
+			rfile = rule_file ? rule_file : file;
+			ec = process(rfile, file, argi, argc, argv, list_rules, list_commands, com, pie);
 			if(ec != EXIT_SUCCESS) {
 				break;
 			}
 		}
 	} else {
-		ec = process(file, argi, argc, argv, list_rules, list_commands, com, pie);
+		rfile = rule_file ? rule_file : file;
+		ec = process(rfile, file, argi, argc, argv, list_rules, list_commands, com, pie);
 	}
 	return ec;
 }

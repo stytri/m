@@ -1,6 +1,6 @@
 # m
 
-## Version 4.2.5
+## Version 4.3.0
 
 a mini make
 
@@ -25,6 +25,7 @@ OPTION:
 	-v, --version      display version
 	    --license      display license
 	    --readme       display readme
+	-m FILE            read rules from a separate FILE
 	-r, --rules        display available rules
 	-c, --commands     display commands executed by rules
 	-q, --quiet        do not display commands as they are executed
