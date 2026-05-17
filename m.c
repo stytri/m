@@ -95,6 +95,12 @@ static void readme(void) {
 	puts("");
 	puts("`:&` Adds another command to be executed by the rule.");
 	puts("");
+	puts("### dependency lists");
+	puts("");
+	puts("A dependency list consists of one or more of: a colon (`:`) and a rule name. Dependency rules are executed first.");
+	puts("");
+	puts("### rule conditions");
+	puts("");
 	puts("A rule condition is either a name or a shell command followed by either `?` or `!`:");
 	puts("");
 	puts("`?` indicates that the rule is enabled if there is an existing rule or environment variable of the given name, or the execution of the shell command is succesful.");
@@ -103,7 +109,11 @@ static void readme(void) {
 	puts("");
 	puts("A shell command is a character sequence enclosed by the `(` and `)` characters.");
 	puts("");
-	puts("A dependency list consists of one or more of: a colon (`:`) and a rule name. Dependency rules are executed first.");
+	puts("### comment inversion");
+	puts("");
+	puts("When a comment definition starts with the `^` character, then rules are processed when the line does not start with the comment character(s).");
+	puts("In this case the entirety of the file is processed for comments instead of stopping after a single block.");
+	puts("This is in effect for files with the `.m` extension (where the comment character is a single `#`).");
 	puts("");
 	puts("## Variable Expansion");
 	puts("");
@@ -311,6 +321,9 @@ static struct comment const asm_style_comments = (struct comment){
 static struct comment const html_style_comments = (struct comment){
 	COM("<!--" ), COM("::"), COM(":+"), COM(":&"), COM("--!>")
 };
+static struct comment const m_style_comments = (struct comment){
+	COM("^#" ), COM("::"), COM(":+"), COM(":&"), COM("")
+};
 static struct comment const md_style_comments = (struct comment){
 	// https://stackoverflow.com/questions/4823468/comments-in-markdown
 	COM("[comment]: # (" ), COM("::"), COM(":+"), COM(":&"), COM(")")
@@ -379,6 +392,7 @@ static struct extension {
 	struct comment const *com;
 	char           const **dr;
 }	const extcom[] = {
+	{ ".m"   ,     &m_style_comments, NULL },
 	{ ".md"  ,    &md_style_comments, NULL },
 	{ ".c"   ,     &c_style_comments, c_default_rules },
 	{ ".cc"  ,     &c_style_comments, cxx_default_rules },
@@ -429,7 +443,8 @@ static char const **get_default_rules(char const *ext) {
 }
 
 static int is_comment(struct comment const *com, char const *ln) {
-	return strneq(ln, com->comment.cs, com->comment.n);
+	bool invert = com->comment.cs[0] == '^';
+	return invert ^ strneq(ln, com->comment.cs+invert, com->comment.n);
 }
 
 static int is_rule(struct comment const *com, char const *ln) {
@@ -526,7 +541,7 @@ static size_t read_rules(char const *, void *in, char *(*read_line)(void *), int
 	struct rule   *r = NULL, *p = NULL;
 	struct string *c = NULL;
 	size_t         n = 0, m;
-
+	bool   invert = com->comment.cs[0] == '^';
 	size_t lineno = 1;
 	char const *cs;
 	char *s = read_line(in);
@@ -534,14 +549,18 @@ static size_t read_rules(char const *, void *in, char *(*read_line)(void *), int
 		for(; s && !is_comment(com, s); s = read_line(in), ++lineno)
 			;
 		for(; s &&  is_comment(com, s); s = read_line(in), ++lineno) {
-			for(s += com->comment.n; isspace(*s); s++);
-			if(com->end.n > 0) {
-				m = strlen(s);
-				if(m >= com->end.n) {
-					if(memcmp(s + m - com->end.n, com->end.cs, com->end.n) == 0) {
-						m -= com->end.n;
-						while((m > 0) && isspace(s[m])) m--;
-						s[m] = '\0';
+			if(invert) {
+				for(; isspace(*s); s++);
+			} else {
+				for(s += com->comment.n; isspace(*s); s++);
+				if(com->end.n > 0) {
+					m = strlen(s);
+					if(m >= com->end.n) {
+						if(memcmp(s + m - com->end.n, com->end.cs, com->end.n) == 0) {
+							m -= com->end.n;
+							while((m > 0) && isspace(s[m])) m--;
+							s[m] = '\0';
+						}
 					}
 				}
 			}
@@ -560,7 +579,7 @@ static size_t read_rules(char const *, void *in, char *(*read_line)(void *), int
 				goto append_command;
 			}
 			if(is_rule(com, s)) {
-				found_rule = true;
+				found_rule = !invert;
 				for(s += com->rule.n; isspace(*s); s++);
 				bool system_call = (*s == '(');
 				if(system_call) {
@@ -1139,7 +1158,7 @@ static int process(char const *rfile, char const *file, int argi, int argc, char
 }
 
 static void version(FILE *out) {
-	fputs("4.3.0\n", out);
+	fputs("4.4.0\n", out);
 }
 
 static void usage(FILE *out) {
