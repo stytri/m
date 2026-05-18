@@ -58,6 +58,14 @@ static void license(void) {
 // :&  file2
 // :&  file3
 //
+// ::test-arguments
+// :+   echo $"*
+// :&   echo $"[1]
+// :&   echo $"[1)
+// :&   echo $"[2-5]
+// :&   echo $"[2-5)
+//
+//
 static void version(FILE *out);
 static void usage(FILE *out);
 static void readme(void) {
@@ -87,9 +95,12 @@ static void readme(void) {
 	puts("");
 	puts("## Rule Format");
 	puts("");
-	puts("Specifically, **m** first scans for a starting line comment, then parses a block of line comments, and stops parsing at a non-comment. For each comment it looks for the following character sequences (after skipping any space/tab characters):");
+	puts("Specifically, **m** first scans for a starting line comment, then parses a block of line comments, and stops parsing at a non-comment.");
+	puts("For each comment it looks for the following character sequences (after skipping any space/tab characters):");
 	puts("");
-	puts("`::` Introduces a new rule. There follows an optional rule condition, and then the rule name. The rule name - which is a sequence of alphanumeric, as well as the `_` and `-`, characters - follows. This is followed by an optional dependency list. The remainder of the line is the command to be executed.");
+	puts("`::` Introduces a new rule; there follows an optional rule condition, and then the rule name.");
+	puts("The rule name - which is a sequence of alphanumeric, as well as the `_` and `-`, characters - follows.");
+	puts("This in turn is followed by an optional dependency list. The remainder of the line is the command to be executed.");
 	puts("");
 	puts("`:+` Appends the remainder of the line to the current rule command.");
 	puts("");
@@ -157,9 +168,17 @@ static void readme(void) {
 	puts("");
 	puts("#### arguments");
 	puts("");
-	puts("A numeric variable name specifies the position index of an argument passed on the command line following the rule name, starting from 0.");
+	puts("`$`_index_ the numeric index specifies the position of an argument passed on the command line following the rule name, starting from 0.");
 	puts("");
 	puts("`$*` expands all arguments, separating them with spaces. If the quote modifier is given, the arguments are individually quoted.");
+	puts("");
+	puts("`$[`_start-index_`)` as above, except the arguments start at the argument index.");
+	puts("");
+	puts("`$[`_start-index_`]` effectively the same as `$[`_start-index_`)`.");
+	puts("");
+	puts("`$[`_start-index_`-`_end-index_`)` outputs arguments in the half-open range.");
+	puts("");
+	puts("`$[`_start-index_`-`_end-index_`]` outputs arguments in the closed range.");
 	puts("");
 	puts("Expansion is recursive.");
 	puts("");
@@ -843,19 +862,48 @@ static int expander(struct env *e, size_t n, char const *cs, struct cslist const
 				CONCATENATE(e->s, n, ct, u);
 			}
 			continue;
+		case '[':
+			cs++;
+			if(isdigit(c = *cs)) {
+				char *s;
+				int argn = e->argn;
+				int argi = (int)strtol(cs, &s, 10);
+				c = *(cs = s);
+				if(c == '-') {
+					argn = (int)strtol(cs+1, &s, 10);
+					if(argn > e->argn) argn = e->argn;
+					c = *(cs = s);
+				}
+				switch(c) {
+				case ']':
+					if(argn < e->argn) argn++;
+					// fall-through
+				case ')':
+					cs++;
+					for(; argi < argn; argi++) {
+						if(argi > 0) {
+							e->s = concatenate(e->s, n, " ", 1);
+							n += 1;
+						}
+						ct = e->argv[argi];
+						u  = strlen(ct);
+						CONCATENATE(e->s, n, ct, u);
+					}
+					continue;
+				}
+				continue;
+			}
+			CONCATENATE(e->s, n, "[", 1);
+			continue;
 		case '$':
 			cs++;
 			CONCATENATE(e->s, n, "$", 1);
 			continue;
 		}
 		if(isdigit(c)) {
-			int argi = 0;
-			do {
-				argi = (argi * 10) + (c - '0');
-				cs++;
-				c = *cs;
-			} while(isdigit(c))
-				;
+			char *s;
+			int argi = (int)strtol(cs, &s, 10);
+			c = *(cs = s);
 			if(argi < e->argn) {
 				ct = e->argv[argi];
 				RECURSIVE_CONCATENATE(e->s, n, ct);
@@ -1158,7 +1206,7 @@ static int process(char const *rfile, char const *file, int argi, int argc, char
 }
 
 static void version(FILE *out) {
-	fputs("4.4.0\n", out);
+	fputs("4.5.0\n", out);
 }
 
 static void usage(FILE *out) {

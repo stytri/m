@@ -1,6 +1,6 @@
 # m
 
-## Version 4.4.0
+## Version 4.5.0
 
 a mini make
 
@@ -53,9 +53,12 @@ if RULE is the single character '-', the first rule is invoked
 
 ## Rule Format
 
-Specifically, **m** first scans for a starting line comment, then parses a block of line comments, and stops parsing at a non-comment. For each comment it looks for the following character sequences (after skipping any space/tab characters):
+Specifically, **m** first scans for a starting line comment, then parses a block of line comments, and stops parsing at a non-comment.
+For each comment it looks for the following character sequences (after skipping any space/tab characters):
 
-`::` Introduces a new rule. There follows an optional rule condition, and then the rule name. The rule name - which is a sequence of alphanumeric, as well as the `_` and `-`, characters - follows. This is followed by an optional dependency list. The remainder of the line is the command to be executed.
+`::` Introduces a new rule; there follows an optional rule condition, and then the rule name.
+The rule name - which is a sequence of alphanumeric, as well as the `_` and `-`, characters - follows.
+This in turn is followed by an optional dependency list. The remainder of the line is the command to be executed.
 
 `:+` Appends the remainder of the line to the current rule command.
 
@@ -123,9 +126,17 @@ Alternate expansion is recursive.
 
 #### arguments
 
-A numeric variable name specifies the position index of an argument passed on the command line following the rule name, starting from 0.
+`$`_index_ the numeric index specifies the position of an argument passed on the command line following the rule name, starting from 0.
 
 `$*` expands all arguments, separating them with spaces. If the quote modifier is given, the arguments are individually quoted.
+
+`$[`_start-index_`)` as above, except the arguments start at the argument index.
+
+`$[`_start-index_`]` effectively the same as `$[`_start-index_`)`.
+
+`$[`_start-index_`-`_end-index_`)` outputs arguments in the half-open range.
+
+`$[`_start-index_`-`_end-index_`]` outputs arguments in the closed range.
 
 Expansion is recursive.
 
