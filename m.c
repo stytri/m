@@ -1230,16 +1230,16 @@ static void add_default_defs(void) {
 #if defined(_WIN32) || defined(_WIN64)
 	add_def("OS_Windows=1");
 #endif
-#if defined(__amd64__) || defined(__x86_64__) || defined(__M_AMD64__) || defined(__M_X64__)
+#if defined(__amd64__) || defined(__x86_64__) || defined(_M_AMD64) || defined(_M_X64)
 	add_def("AR_AMD64=1");
 #endif
-#if defined(__arm__) || defined(__M_ARM)
+#if defined(__arm__) || defined(_M_ARM)
 	add_def("AR_ARM=1");
 #endif
-#if defined(__thumb__) || defined(__M_ARMT)
+#if defined(__thumb__) || defined(_M_ARMT)
 	add_def("AR_ARMThumb=1");
 #endif
-#if defined(__aarch64__) || defined(__M_ARM64)
+#if defined(__aarch64__) || defined(_M_ARM64)
 	add_def("AR_ARM64=1");
 #endif
 }
