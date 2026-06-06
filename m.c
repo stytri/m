@@ -27,7 +27,7 @@ static void license(void) {
 //
 // ::compile
 // :+  $CC $CFLAGS $SMALL-BINARY
-// :+      -DNDEBUG=1 -O3 -o $+^ $"!
+// :+      -DNDEBUG=1 -O3 -o $+^ $"* $"!
 //
 // ::debug
 // :+  $CC $CFLAGS
@@ -38,7 +38,7 @@ static void license(void) {
 // ::CFLAGS
 // :+      -Wall -Wextra $WINFLAGS
 //
-// ::windir?WINFLAGS
+// ::OS_Windows?WINFLAGS
 // :+      -D__USE_MINGW_ANSI_STDIO=1
 //
 // ::SMALL-BINARY
@@ -1205,8 +1205,47 @@ static int process(char const *rfile, char const *file, int argi, int argc, char
 	return ec;
 }
 
+static void add_default_defs(void) {
+#if defined(__ANDROID__)
+	add_def("OS_Android=1");
+#endif
+#if defined(BSD)
+	add_def("OS_BSD=1");
+#endif
+#if defined(__FreeBSD__)
+	add_def("OS_FreeBSD=1");
+#endif
+#if defined(__NetBSD__)
+	add_def("OS_NetBSD=1");
+#endif
+#if defined(__OpenBSD__)
+	add_def("OS_OpenBSD=1");
+#endif
+#if defined(__linux__)
+	add_def("OS_Linux=1");
+#endif
+#if defined(__unix__) || defined(__unix)
+	add_def("OS_Unix=1");
+#endif
+#if defined(_WIN32) || defined(_WIN64)
+	add_def("OS_Windows=1");
+#endif
+#if defined(__amd64__) || defined(__x86_64__) || defined(__M_AMD64__) || defined(__M_X64__)
+	add_def("AR_AMD64=1");
+#endif
+#if defined(__arm__) || defined(__M_ARM)
+	add_def("AR_ARM=1");
+#endif
+#if defined(__thumb__) || defined(__M_ARMT)
+	add_def("AR_ARMThumb=1");
+#endif
+#if defined(__aarch64__) || defined(__M_ARM64)
+	add_def("AR_ARM64=1");
+#endif
+}
+
 static void version(FILE *out) {
-	fputs("4.5.0\n", out);
+	fputs("4.6.0\n", out);
 }
 
 static void usage(FILE *out) {
@@ -1255,6 +1294,8 @@ int main(int argc, char **argv) {
 	struct comment const *com = NULL;
 	bool no_fail = false;
 	bool pie = true;
+
+	add_default_defs();
 
 	int argi = 1;
 	for(; (argi < argc) && (argv[argi][0] == '-'); argi++) {
