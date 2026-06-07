@@ -112,11 +112,11 @@ static void readme(void) {
 	puts("");
 	puts("### rule conditions");
 	puts("");
-	puts("A rule condition is either a name or a shell command followed by either `?` or `!`:");
+	puts("A rule condition is either a name, a name followed by `=` and a textual value, or a shell command, followed by either `?` or `!`:");
 	puts("");
-	puts("`?` indicates that the rule is enabled if there is an existing rule or environment variable of the given name, or the execution of the shell command is succesful.");
+	puts("`?` indicates that the rule is enabled if there is an existing rule or environment variable of the given name, or its value matches the textual value, or the execution of the shell command is succesful.");
 	puts("");
-	puts("`!` indicates that the rule is enabled if there is no existing rule or environment variable of the given name, or the execution of the shell command is unsuccesful.");
+	puts("`!` indicates that the rule is enabled if there is no existing rule or environment variable of the given name, or its value does not match the textual value, or the execution of the shell command is unsuccesful.");
 	puts("");
 	puts("A shell command is a character sequence enclosed by the `(` and `)` characters.");
 	puts("");
@@ -239,6 +239,19 @@ static bool streq(char const *cs, char const *ct) {
 
 static bool strneq(char const *cs, char const *ct, size_t n) {
 	return !strncmp(cs, ct, n);
+}
+
+static bool equals(char const *cs, char const *ct, size_t n) {
+	size_t u = strlen(cs);
+	for(; isspace(*cs); cs++, u--)
+		;
+	for(; (u > 0) && isspace(cs[u-1]); u--)
+		;
+	for(; isspace(*ct); ct++, n--)
+		;
+	for(; (n > 0) && isspace(ct[n-1]); n--)
+		;
+	return (u == n) ? !strncmp(cs, ct, n) : false;
 }
 
 static void *non_null_pointer(void *p, char const *cs) {
@@ -609,6 +622,14 @@ static size_t read_rules(char const *, void *in, char *(*read_line)(void *), int
 				}
 				m = s - cs;
 				cs = duplicate(cs, m);
+				char  *to_str = "";
+				size_t to_len = 0;
+				bool compare = !system_call && (*s == '=');
+				if(compare) {
+					for(to_str = ++s; *s && (*s != '?') && (*s != '!'); s++)
+						;
+					to_len = s - to_str;
+				}
 				skip_rule = false;
 				switch(*s) {
 				default:
@@ -620,6 +641,9 @@ static size_t read_rules(char const *, void *in, char *(*read_line)(void *), int
 				case '!':
 					if(system_call) {
 						if(system(cs) == 0) skip_rule = !skip_rule;
+					} else if(compare) {
+						char const *value = get_var(cs, n, r, NULL);
+						if(value && equals(value, to_str, to_len)) skip_rule = !skip_rule;
 					} else {
 						if(get_var(cs, n, r, NULL)) skip_rule = !skip_rule;
 					}
@@ -1245,7 +1269,7 @@ static void add_default_defs(void) {
 }
 
 static void version(FILE *out) {
-	fputs("4.6.0\n", out);
+	fputs("4.7.0\n", out);
 }
 
 static void usage(FILE *out) {

@@ -1,6 +1,6 @@
 # m
 
-## Version 4.6.0
+## Version 4.7.0
 
 a mini make
 
@@ -70,11 +70,11 @@ A dependency list consists of one or more of: a colon (`:`) and a rule name. Dep
 
 ### rule conditions
 
-A rule condition is either a name or a shell command followed by either `?` or `!`:
+A rule condition is either a name, a name followed by `=` and a textual value, or a shell command, followed by either `?` or `!`:
 
-`?` indicates that the rule is enabled if there is an existing rule or environment variable of the given name, or the execution of the shell command is succesful.
+`?` indicates that the rule is enabled if there is an existing rule or environment variable of the given name, or its value matches the textual value, or the execution of the shell command is succesful.
 
-`!` indicates that the rule is enabled if there is no existing rule or environment variable of the given name, or the execution of the shell command is unsuccesful.
+`!` indicates that the rule is enabled if there is no existing rule or environment variable of the given name, or its value does not match the textual value, or the execution of the shell command is unsuccesful.
 
 A shell command is a character sequence enclosed by the `(` and `)` characters.
 
